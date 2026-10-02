@@ -9,13 +9,6 @@ function HomeIcon({ color }: { color: string }) {
     </Svg>
   );
 }
-function ActivityIcon({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
-      <Path d="M3 10h3l2-5 4 10 2-5h3" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
 function ChatIcon({ color }: { color: string }) {
   return (
     <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
@@ -60,7 +53,6 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <HomeIcon color={String(color)} /> }} />
-      <Tabs.Screen name="activity" options={{ title: 'Activity', tabBarIcon: ({ color }) => <ActivityIcon color={String(color)} /> }} />
       <Tabs.Screen name="chat" options={{ title: 'AI Chat', tabBarIcon: ({ color }) => <ChatIcon color={String(color)} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <ProfileIcon color={String(color)} /> }} />
     </Tabs>

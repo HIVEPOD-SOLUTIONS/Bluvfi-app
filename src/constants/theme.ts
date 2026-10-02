@@ -63,19 +63,20 @@ export const Fonts = {
 } as const;
 
 /**
- * Typography scale — exact point values from the design system PDF (same
- * numbers used in the bluvfi web implementation's globals.css text utilities,
- * kept identical here so both surfaces read as the same design system).
+ * Typography scale — the design system PDF's hierarchy and families, with sizes raised for phones.
+ * The PDF's literal point values (body 10, small 8.5, label 8) are print-page sizes and were
+ * unreadable on a device, so the small steps are lifted to mobile-legible minimums
+ * (body 14, small 12, label 11) and the headings scaled to keep the same ratios.
  */
 export const Type = {
-  display: { fontFamily: Fonts.sansBold, fontSize: 32, letterSpacing: -1.28 },
-  h1: { fontFamily: Fonts.sansBold, fontSize: 22, letterSpacing: -0.66 },
-  h2: { fontFamily: Fonts.sansSemiBold, fontSize: 16, letterSpacing: -0.32 },
-  h3: { fontFamily: Fonts.sansSemiBold, fontSize: 13, letterSpacing: -0.13 },
-  body: { fontFamily: Fonts.sansRegular, fontSize: 10, lineHeight: 16.5 },
-  small: { fontFamily: Fonts.sansRegular, fontSize: 8.5 },
-  label: { fontFamily: Fonts.mono, fontSize: 8, letterSpacing: 0.96, textTransform: 'uppercase' as const },
-  amount: { fontFamily: Fonts.monoBold, fontSize: 22 },
+  display: { fontFamily: Fonts.sansBold, fontSize: 34, letterSpacing: -1.36 },
+  h1: { fontFamily: Fonts.sansBold, fontSize: 24, letterSpacing: -0.72 },
+  h2: { fontFamily: Fonts.sansSemiBold, fontSize: 18, letterSpacing: -0.36 },
+  h3: { fontFamily: Fonts.sansSemiBold, fontSize: 15, letterSpacing: -0.15 },
+  body: { fontFamily: Fonts.sansRegular, fontSize: 14, lineHeight: 20 },
+  small: { fontFamily: Fonts.sansRegular, fontSize: 12 },
+  label: { fontFamily: Fonts.mono, fontSize: 11, letterSpacing: 0.88, textTransform: 'uppercase' as const },
+  amount: { fontFamily: Fonts.monoBold, fontSize: 24 },
 } as const;
 
 export const BottomNavHeight = 64;

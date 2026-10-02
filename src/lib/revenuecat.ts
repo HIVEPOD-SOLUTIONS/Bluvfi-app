@@ -26,7 +26,12 @@ export async function initRevenueCat(userId: string): Promise<void> {
   if (!apiKey) return;
 
   try {
-    if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    if (__DEV__) {
+      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+      // RevenueCat logs store problems (e.g. no Google Play on an emulator) via console.error, which
+      // pops React Native's red dev overlay even though purchases are optional. Keep them as plain logs.
+      Purchases.setLogHandler((level, message) => console.log(`[RevenueCat ${level}]`, message));
+    }
     Purchases.configure({ apiKey, appUserID: userId });
     initialized = true;
   } catch {

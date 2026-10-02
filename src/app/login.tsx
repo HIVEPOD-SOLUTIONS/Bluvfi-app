@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,14 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isLogin = mode === 'login';
-  const { sendCode, loginWithCode, otpState, loginWithPasskey, signupWithPasskey, passkeyState } = useAuth();
+  const { isAuthenticated, sendCode, loginWithCode, otpState, loginWithPasskey, signupWithPasskey, passkeyState } = useAuth();
+
+  // AuthGate swaps (tabs) in when the user signs in, but that swap doesn't always move the visible
+  // screen off this one (same quirk as on logout). If Privy has a session, go to the app explicitly —
+  // otherwise the user is left here, and re-submitting the code errors with "Already logged in".
+  useEffect(() => {
+    if (isAuthenticated) router.replace('/(tabs)');
+  }, [isAuthenticated]);
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');

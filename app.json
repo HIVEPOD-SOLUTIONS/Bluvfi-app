@@ -37,7 +37,8 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "./plugins/with-limited-cpp-parallelism"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -14,7 +14,7 @@ import { Colors, Radii, Spacing, Type } from '@/constants/theme';
  * emits the `pendingPurchase` flag that would render the card, and
  * PayBillConfirmCard isn't imported anywhere in the live chat UI. Real,
  * reachable payment flows (bill pay, asset buy, onramp) are the dedicated
- * screens under Activity instead — see PaymentConfirmSheet / BuyAssetSheet /
+ * tabs on the Home dashboard instead — see PaymentConfirmSheet / BuyAssetSheet /
  * OnrampSheet.
  */
 export function ToolResultCard({ toolName, output }: { toolName: string; output: unknown }) {

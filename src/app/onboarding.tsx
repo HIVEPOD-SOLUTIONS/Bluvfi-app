@@ -147,7 +147,8 @@ const styles = StyleSheet.create({
   },
   heading: {
     ...Type.display,
-    lineHeight: 38,
+    fontSize: 30, // three short lines per slide; 34 would wrap "assistant for global" on narrow phones
+    lineHeight: 36,
     color: Colors.tx0,
     marginBottom: Spacing.xl,
   },
