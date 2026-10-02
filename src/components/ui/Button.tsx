@@ -15,6 +15,7 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   iconRight?: ReactNode;
+  iconLeft?: ReactNode;
 }
 
 const VARIANT_STYLES: Record<ButtonVariant, { bg: string; border?: string; text: string }> = {
@@ -49,6 +50,7 @@ export function Button({
   disabled = false,
   loading = false,
   iconRight,
+  iconLeft,
 }: ButtonProps) {
   const v = VARIANT_STYLES[variant];
   const s = SIZE_STYLES[size];
@@ -74,6 +76,7 @@ export function Button({
       <View style={styles.content}>
         {loading && <ActivityIndicator size="small" color={v.text} />}
         {!loading && variant === 'premium' && <SparkleIcon color={v.text} />}
+        {!loading && iconLeft}
         {!loading &&
           (typeof children === 'string' ? (
             <Text style={[styles.text, { color: v.text, fontSize: s.fontSize }]}>{children}</Text>

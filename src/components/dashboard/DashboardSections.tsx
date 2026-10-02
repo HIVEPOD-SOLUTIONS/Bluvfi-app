@@ -1,9 +1,14 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Badge, BadgeVariant } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiQuery } from '@/hooks/use-api';
-import type { Bill, InvestmentPosition, Payment } from '@/lib/api-types';
+import type { InvestmentPosition, Payment } from '@/lib/api-types';
+import { PurchaseRow } from './PurchaseRow';
+
+const BITREFILL_LOGO =
+  'https://files.readme.io/4d0d667c7bc96cf97cd030670700d5a4163c361f3ed8a83dec0b6b1ce5cc5076-iOS_app_icon_1024.png';
 
 /**
  * The four dashboard tabs (Bills / Invest / Banking / History). They render plain lists (no nested
@@ -25,33 +30,83 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-export function BillsSection({ onPay }: { onPay: (bill: Bill) => void }) {
-  const { data, isLoading } = useApiQuery<{ bills: Bill[] }>(['bills'], '/api/bills');
+interface BillsSectionProps {
+  /** Completed digital-product purchases, from `/api/payments?type=bill` (includes ones the AI made). */
+  purchasedCount: number;
+  loading: boolean;
+  /** Bill payments, newest first (any status); the latest few are listed under "My Bills". */
+  purchases: Payment[];
+  onViewAll: () => void;
+  onAskAi: () => void;
+  onOpenBitrefill: () => void;
+}
 
-  if (isLoading) return <EmptyState text="Loading bills…" />;
-  if (!data?.bills.length) return <EmptyState text="No bills yet." />;
+const RECENT_PURCHASES = 3;
+
+/** Bills tab, as on the web: purchase summary, then "My Bills" / "Browse" (provider catalogs). */
+export function BillsSection({ purchasedCount, loading, purchases, onViewAll, onAskAi, onOpenBitrefill }: BillsSectionProps) {
+  const [view, setView] = useState<'bills' | 'browse'>('bills');
 
   return (
     <View style={styles.list}>
-      {data.bills.map((item) => {
-        const isPaid = item.status === 'completed' || item.status === 'paid';
-        return (
-          <View key={item.id} style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{item.name}</Text>
-              <Text style={styles.rowSub}>{item.category}</Text>
-            </View>
-            <Text style={styles.rowAmount}>${item.amount}</Text>
-            {isPaid ? (
-              <Badge variant="live" />
-            ) : (
-              <Button size="sm" onPress={() => onPay(item)}>
-                Pay
-              </Button>
-            )}
+      <View style={styles.hero}>
+        <Text style={styles.heroLabel}>Digital Products</Text>
+        <View style={styles.heroCountRow}>
+          <Text style={styles.heroCount}>{loading ? '…' : purchasedCount}</Text>
+          <Text style={styles.heroCountSuffix}>purchased</Text>
+        </View>
+        <Text style={styles.heroSub}>Gift cards · Mobile top-ups · eSIM data plans</Text>
+        <View style={{ marginTop: Spacing.lg }}>
+          <Button onPress={onAskAi}>Ask AI to find products</Button>
+        </View>
+      </View>
+
+      <View style={styles.toggle}>
+        {(['bills', 'browse'] as const).map((v) => (
+          <Pressable key={v} onPress={() => setView(v)} style={[styles.toggleButton, view === v && styles.toggleButtonActive]}>
+            <Text style={[styles.toggleText, view === v && styles.toggleTextActive]}>
+              {v === 'bills' ? 'My Bills' : 'Browse'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {view === 'bills' &&
+        (loading ? (
+          <EmptyState text="Loading…" />
+        ) : purchases.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 36 }}>🧾</Text>
+            <Text style={styles.emptyTitle}>No purchases yet</Text>
+            <Text style={styles.emptyText}>Browse digital products to get started</Text>
+            <View style={{ height: Spacing.md }} />
+            <Button onPress={() => setView('browse')}>Browse Products</Button>
           </View>
-        );
-      })}
+        ) : (
+          <View style={styles.list}>
+            <View style={styles.recentHeader}>
+              <Text style={styles.recentLabel}>Recent purchases</Text>
+              <Pressable onPress={onViewAll} hitSlop={8} style={styles.viewAll}>
+                <Text style={styles.viewAllText}>View all</Text>
+                <Text style={styles.viewAllText}>›</Text>
+              </Pressable>
+            </View>
+            {purchases.slice(0, RECENT_PURCHASES).map((p) => (
+              <PurchaseRow key={p.id} payment={p} />
+            ))}
+          </View>
+        ))}
+
+      {view === 'browse' && (
+        <Pressable onPress={onOpenBitrefill} style={styles.provider}>
+          <Image source={{ uri: BITREFILL_LOGO }} style={styles.providerLogo} resizeMode="contain" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Bitrefill</Text>
+            <Text style={styles.rowSub}>Gift cards, mobile top-ups & eSIM data plans — 10,000+ products worldwide</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -107,7 +162,7 @@ export function HistorySection() {
             <Text style={styles.rowTitle}>{item.description ?? item.type}</Text>
             <Text style={styles.rowSub}>{new Date(item.createdAt).toLocaleDateString()}</Text>
           </View>
-          {item.amountUsdc && <Text style={styles.rowAmount}>${item.amountUsdc}</Text>}
+          {Number(item.amountUsdc) > 0 && <Text style={styles.rowAmount}>${Number(item.amountUsdc).toFixed(2)}</Text>}
           <Badge variant={statusToBadge(item.status)} />
         </View>
       ))}
@@ -143,6 +198,112 @@ const styles = StyleSheet.create({
     ...Type.body,
     fontFamily: Type.amount.fontFamily,
     color: Colors.tx0,
+  },
+  // Design system card: BG-1 surface, 16px radius, sage-tinted border (--bd-sage). Sage is for
+  // positive/success text, not a filled surface.
+  hero: {
+    backgroundColor: Colors.bg1,
+    borderWidth: 1,
+    borderColor: Colors.borderSage,
+    borderRadius: Radii.xxl,
+    padding: Spacing.xl,
+  },
+  heroLabel: {
+    ...Type.label,
+    fontSize: 12,
+    // TX-2 (#6B6B62) is too faint for this size on a BG-1 card; TX-1 keeps the caps legible.
+    color: Colors.tx1,
+  },
+  heroCountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  heroCount: {
+    ...Type.amount,
+    fontSize: 32,
+    lineHeight: 40,
+    color: Colors.tx0,
+  },
+  heroCountSuffix: {
+    ...Type.body,
+    color: Colors.sage,
+  },
+  heroSub: {
+    ...Type.small,
+    color: Colors.tx1,
+    marginTop: 2,
+  },
+  toggle: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  toggleButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    backgroundColor: Colors.bg2,
+  },
+  toggleButtonActive: {
+    backgroundColor: Colors.blue,
+  },
+  toggleText: {
+    ...Type.body,
+    color: Colors.tx1,
+  },
+  toggleTextActive: {
+    color: '#FFFFFF',
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xs,
+  },
+  recentLabel: {
+    ...Type.label,
+    fontSize: 12,
+    color: Colors.tx1,
+  },
+  viewAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.bg2,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+  },
+  viewAllText: {
+    ...Type.small,
+    color: Colors.tx0,
+  },
+  provider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.bg1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radii.xl,
+    padding: Spacing.lg,
+  },
+  providerLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.lg,
+    backgroundColor: 'rgba(242,240,232,0.06)',
+  },
+  chevron: {
+    ...Type.h1,
+    color: Colors.tx1,
+  },
+  emptyTitle: {
+    ...Type.h3,
+    color: Colors.tx0,
+    marginTop: Spacing.sm,
   },
   empty: {
     alignItems: 'center',

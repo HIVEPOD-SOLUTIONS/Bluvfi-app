@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useChat } from '@ai-sdk/react';
@@ -46,6 +47,18 @@ export default function ChatScreen() {
 
   const { messages, sendMessage, status, error } = useChat({ transport });
   const isBusy = status === 'submitted' || status === 'streaming';
+
+  // Dashboard shortcuts ("Ask AI to find products", Buy…) open this tab with a prompt to send straight
+  // away — like the web's sendMessage() + openChat(). `n` makes repeating the same prompt send again.
+  const { prompt, n } = useLocalSearchParams<{ prompt?: string; n?: string }>();
+  const sentPromptKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!prompt) return;
+    const key = `${n ?? ''}:${prompt}`;
+    if (sentPromptKey.current === key) return;
+    sentPromptKey.current = key;
+    sendMessage({ text: prompt });
+  }, [prompt, n, sendMessage]);
 
   const handleSend = () => {
     if (!input.trim() || isBusy) return;

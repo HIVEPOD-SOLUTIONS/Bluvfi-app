@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
 import Svg, { Path } from 'react-native-svg';
 import { PaywallSheet } from '@/components/paywall/PaywallSheet';
-import { PaymentConfirmSheet } from '@/components/payment/PaymentConfirmSheet';
 import { BuyAssetSheet } from '@/components/invest/BuyAssetSheet';
 import { OnrampSheet } from '@/components/banking/OnrampSheet';
 import { OfframpSheet } from '@/components/banking/OfframpSheet';
 import { Avatar, usePremium } from '@/components/profile/ProfileContent';
 import { ProfileDrawer } from '@/components/profile/ProfileDrawer';
 import { FundWalletSheet } from '@/components/dashboard/FundWalletSheet';
+import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
+import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
 import {
   BankingSection,
   BillsSection,
@@ -23,7 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { useApiQuery } from '@/hooks/use-api';
-import type { Bill, InvestmentPosition } from '@/lib/api-types';
+import type { InvestmentPosition, Payment } from '@/lib/api-types';
 
 /** Same thresholds as bluvfi web: under $10 in stablecoins and under 5 XRP counts as a low balance. */
 const LOW_BALANCE_THRESHOLD_USD = 10;
@@ -42,8 +42,9 @@ function getTimeBasedGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 5) return 'Good night';
   if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 21) return 'Good evening';
+  return 'Good night';
 }
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
@@ -64,8 +65,7 @@ function ChatIcon() {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
-  const { email, evmAddress, solanaAddress } = useAuth();
+  const { email, firstName, evmAddress, solanaAddress } = useAuth();
   const { isPremium, setIsPremium } = usePremium();
   const { data: balances, isLoading: balancesLoading } = useBalances(evmAddress, solanaAddress);
   const xrpl = useXrplWallet();
@@ -75,22 +75,28 @@ export default function HomeScreen() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
-  const [payingBill, setPayingBill] = useState<Bill | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [purchasesOpen, setPurchasesOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
   const [onrampOpen, setOnrampOpen] = useState(false);
   const [offrampOpen, setOfframpOpen] = useState(false);
 
-  const { data: billsData } = useApiQuery<{ bills: Bill[] }>(['bills'], '/api/bills');
+  // Same source as the web dashboard: completed bill payments in the payments table, which includes
+  // purchases the AI made on the user's behalf.
+  const { data: billPayments, isLoading: billsLoading } = useApiQuery<{ payments: Payment[] }>(
+    ['payments', 'bill'],
+    '/api/payments',
+    { type: 'bill', limit: 100 },
+  );
   const { data: investData } = useApiQuery<{ portfolio: InvestmentPosition[]; totalValueUsd: number }>(
     ['investments'],
     '/api/investments',
   );
 
-  const purchasedCount = billsData?.bills.filter((b) => b.status === 'completed' || b.status === 'paid').length ?? 0;
+  const purchasedCount = billPayments?.payments.filter((p) => p.status === 'completed').length ?? 0;
   const portfolioValue = investData?.totalValueUsd ?? 0;
   const positionCount = investData?.portfolio.length ?? 0;
   const greeting = getTimeBasedGreeting();
-  const firstName = email?.split('@')[0];
 
   const evmTotal = (balances?.evmUsdc ?? 0) + (balances?.evmUsdt ?? 0);
   const solTotal = (balances?.solUsdc ?? 0) + (balances?.solUsdt ?? 0);
@@ -105,7 +111,9 @@ export default function HomeScreen() {
     totalBalance < LOW_BALANCE_THRESHOLD_USD &&
     (xrp.balance ?? 0) < LOW_XRP_THRESHOLD;
 
-  const openChat = () => router.navigate('/chat');
+  /** Opens AI Chat; with a prompt, the assistant starts on it right away (web: sendMessage + openChat). */
+  const openChat = (prompt?: string) =>
+    router.navigate(prompt ? { pathname: '/chat', params: { prompt, n: String(Date.now()) } } : '/chat');
 
   return (
     <View style={styles.screen}>
@@ -130,7 +138,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <Pressable onPress={openChat} hitSlop={10} accessibilityRole="button" accessibilityLabel="Open chat">
+          <Pressable onPress={() => openChat()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Open chat">
             <ChatIcon />
           </Pressable>
         </View>
@@ -206,7 +214,16 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.section}>
-          {tab === 'bills' && <BillsSection onPay={setPayingBill} />}
+          {tab === 'bills' && (
+            <BillsSection
+              purchasedCount={purchasedCount}
+              loading={billsLoading}
+              purchases={billPayments?.payments ?? []}
+              onViewAll={() => setPurchasesOpen(true)}
+              onAskAi={() => openChat('Find me a good gift card for gaming or streaming')}
+              onOpenBitrefill={() => setCatalogOpen(true)}
+            />
+          )}
           {tab === 'invest' && <InvestSection onBuy={() => setBuyOpen(true)} />}
           {tab === 'banking' && (
             <BankingSection onAddFunds={() => setOnrampOpen(true)} onWithdraw={() => setOfframpOpen(true)} />
@@ -216,7 +233,7 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* Ask bar: opens the AI chat, like the web dashboard's "Ask Bluvfi anything…" input. */}
-      <Pressable onPress={openChat} style={styles.askBar} accessibilityRole="button" accessibilityLabel="Ask Bluvfi">
+      <Pressable onPress={() => openChat()} style={styles.askBar} accessibilityRole="button" accessibilityLabel="Ask Bluvfi">
         <Text style={styles.askText}>Ask Bluvfi anything…</Text>
       </Pressable>
 
@@ -245,23 +262,25 @@ export default function HomeScreen() {
       <BuyAssetSheet open={buyOpen} onClose={() => setBuyOpen(false)} />
       <OnrampSheet open={onrampOpen} onClose={() => setOnrampOpen(false)} />
       <OfframpSheet open={offrampOpen} onClose={() => setOfframpOpen(false)} />
-      {payingBill && (
-        <PaymentConfirmSheet
-          open
-          onClose={() => setPayingBill(null)}
-          title={payingBill.name}
-          subtitle={payingBill.category}
-          icon="🧾"
-          amount={Number(payingBill.amount)}
-          paymentType="bill"
-          referenceId={payingBill.id}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['bills'] });
-            queryClient.invalidateQueries({ queryKey: ['payments'] });
-            setPayingBill(null);
-          }}
-        />
-      )}
+      <PurchasesSheet
+        open={purchasesOpen}
+        onClose={() => setPurchasesOpen(false)}
+        purchases={billPayments?.payments ?? []}
+      />
+      <BitrefillCatalogSheet
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        onBuy={(product, catalogTab) => {
+          setCatalogOpen(false);
+          const request =
+            catalogTab === 'topup'
+              ? `top up with ${product.name}`
+              : catalogTab === 'esim'
+                ? `get the ${product.name} eSIM plan`
+                : `buy a ${product.name} gift card`;
+          openChat(`I want to ${request}.`);
+        }}
+      />
     </View>
   );
 }

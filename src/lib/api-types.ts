@@ -23,6 +23,19 @@ export interface InvestmentPosition {
   change24h: number;
 }
 
+/** A product from bluvfi's Bitrefill catalog (`/api/bitrefill/products` → `{ data: BitrefillProduct[] }`). */
+export interface BitrefillProduct {
+  id: string;
+  name: string;
+  category: string;
+  currency?: string;
+  logo_url?: string;
+  in_stock?: boolean;
+  recipient_type?: string;
+  packages?: { package_value?: number | string; price_usd?: number }[];
+  range?: { min: number; max: number; price_rate?: number };
+}
+
 export interface Payment {
   id: string;
   type: string;
