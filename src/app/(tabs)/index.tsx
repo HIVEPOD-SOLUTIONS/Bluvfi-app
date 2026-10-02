@@ -1,9 +1,8 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Logo } from '@/components/ui/Logo';
-import { Badge } from '@/components/ui/Badge';
 import { Card, CardLabel, CardAmount } from '@/components/ui/Card';
-import { Colors, Spacing, Type } from '@/constants/theme';
+import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useBalances } from '@/hooks/use-balances';
 import { useApiQuery } from '@/hooks/use-api';
@@ -41,7 +40,9 @@ export default function HomeScreen() {
     >
       <View style={styles.header}>
         <Logo size={24} />
-        <Badge variant="premium">BETA</Badge>
+        <View style={styles.betaChip}>
+          <Text style={styles.betaText}>Beta</Text>
+        </View>
       </View>
 
       <Text style={styles.greeting}>
@@ -104,6 +105,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.xl,
+  },
+  betaChip: {
+    backgroundColor: Colors.bg2,
+    borderRadius: Radii.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
+  betaText: {
+    ...Type.label,
+    color: Colors.tx1,
   },
   greeting: {
     ...Type.h1,

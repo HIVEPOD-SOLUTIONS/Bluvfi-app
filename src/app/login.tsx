@@ -4,8 +4,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Logo } from '@/components/ui/Logo';
 import { Button } from '@/components/ui/Button';
-import { Colors, Spacing, Type } from '@/constants/theme';
+import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+
+/** Friendly message for users; the underlying error is always logged and, in dev builds, shown too. */
+function describeError(friendly: string, err: unknown): string {
+  console.warn('[login]', friendly, err);
+  if (!__DEV__) return friendly;
+  const detail = err instanceof Error ? err.message : String(err);
+  return `${friendly}\n(${detail})`;
+}
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -25,8 +33,8 @@ export default function LoginScreen() {
     setError(null);
     try {
       await loginWithPasskey();
-    } catch {
-      setError("No account found for that passkey — try 'Create a passkey' below, or sign in with email.");
+    } catch (err) {
+      setError(describeError("No account found for that passkey — try 'Create a passkey' below, or sign in with email.", err));
     }
   };
 
@@ -34,8 +42,8 @@ export default function LoginScreen() {
     setError(null);
     try {
       await signupWithPasskey();
-    } catch {
-      setError("Couldn't create a passkey. Try again or use email.");
+    } catch (err) {
+      setError(describeError("Couldn't create a passkey. Try again or use email.", err));
     }
   };
 
@@ -44,8 +52,8 @@ export default function LoginScreen() {
     try {
       await sendCode(email.trim());
       setStep('code');
-    } catch {
-      setError("Couldn't send code — check the email address and try again.");
+    } catch (err) {
+      setError(describeError("Couldn't send code — check the email address and try again.", err));
     }
   };
 
@@ -53,8 +61,8 @@ export default function LoginScreen() {
     setError(null);
     try {
       await loginWithCode(email.trim(), code.trim());
-    } catch {
-      setError('Invalid code — try again.');
+    } catch (err) {
+      setError(describeError('Invalid code — try again.', err));
     }
   };
 
@@ -169,7 +177,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.bg2,
-    borderRadius: 10,
+    borderRadius: Radii.md,
     paddingVertical: 14,
     paddingHorizontal: Spacing.lg,
     color: Colors.tx0,

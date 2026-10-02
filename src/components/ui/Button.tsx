@@ -14,6 +14,7 @@ interface ButtonProps {
   fullWidth?: boolean;
   disabled?: boolean;
   loading?: boolean;
+  iconRight?: ReactNode;
 }
 
 const VARIANT_STYLES: Record<ButtonVariant, { bg: string; border?: string; text: string }> = {
@@ -47,6 +48,7 @@ export function Button({
   fullWidth = false,
   disabled = false,
   loading = false,
+  iconRight,
 }: ButtonProps) {
   const v = VARIANT_STYLES[variant];
   const s = SIZE_STYLES[size];
@@ -78,6 +80,7 @@ export function Button({
           ) : (
             children
           ))}
+        {!loading && iconRight}
       </View>
     </Pressable>
   );
