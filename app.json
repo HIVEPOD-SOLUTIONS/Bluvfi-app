@@ -9,10 +9,10 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.bluvfi.app"
+      "bundleIdentifier": "com.bluvfi.xyz"
     },
     "android": {
-      "package": "com.bluvfi.app",
+      "package": "com.bluvfi.xyz",
       "adaptiveIcon": {
         "backgroundColor": "#0F100D",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
