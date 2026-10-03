@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
-import { useCryptoPrices, type CoinPrice } from '@/hooks/use-crypto-prices';
+import { useCryptoPrices, useSupportedCoins, type CoinPrice } from '@/hooks/use-crypto-prices';
 
 /** $64,231.55 for normal prices; more decimals below $1 so a coin like XRP still shows movement. */
 function formatCoinPrice(n: number): string {
@@ -41,16 +42,25 @@ function PriceChip({ coin }: { coin: CoinPrice }) {
 }
 
 /**
- * Live crypto price strip for the dashboard (same feed and layout as the web). Renders nothing when the feed
- * isn't configured or has never loaded — a missing ticker is better than an error banner on the home screen
- * for something that's purely informational.
+ * Live crypto price strip for the dashboard: every token the providers support (falls back to the four-coin feed
+ * on a backend without /api/prices/supported), with an "All" button on the right that opens the full vertical list.
+ * Renders nothing when no feed is configured or has ever loaded — a missing ticker beats an error banner on the
+ * home screen for something purely informational.
  */
 export function PriceTicker() {
-  const { data, isPending, isError } = useCryptoPrices();
+  const router = useRouter();
+  const all = useSupportedCoins();
+  const basic = useCryptoPrices(all.isError);
 
-  if (isError && !data) return null;
+  const coins: CoinPrice[] | null = all.data
+    ? all.data.coins.map((c) => ({ symbol: c.symbol, name: c.name, priceUsd: c.priceUsd, change1h: c.change1h, change24h: c.change24h, lastUpdated: null }))
+    : basic.data?.prices ?? null;
+  const stale = all.data ? all.data.stale : basic.data?.stale ?? false;
+  const pending = all.isPending || (all.isError && basic.isPending);
 
-  if (isPending) {
+  if (!coins && !pending) return null;
+
+  if (!coins) {
     return (
       <View style={styles.skeletonRow}>
         {[0, 1, 2, 3].map((i) => (
@@ -59,24 +69,43 @@ export function PriceTicker() {
       </View>
     );
   }
-  if (!data || data.prices.length === 0) return null;
+  if (coins.length === 0) return null;
 
   return (
     <View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {data.prices.map((coin) => (
-          <PriceChip key={coin.symbol} coin={coin} />
-        ))}
-      </ScrollView>
+      <View style={styles.rowWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} style={{ flex: 1 }}>
+          {coins.map((coin) => (
+            <PriceChip key={coin.symbol} coin={coin} />
+          ))}
+        </ScrollView>
+        <Pressable onPress={() => router.push('/coins' as Href)} accessibilityRole="button" accessibilityLabel="See all coin prices" style={styles.allButton}>
+          <Text style={styles.allText}>All</Text>
+          <Text style={styles.allChevron}>›</Text>
+        </Pressable>
+      </View>
       <View style={styles.footer}>
-        <View style={[styles.dot, { backgroundColor: data.stale ? Colors.amber : Colors.sage }]} />
-        <Text style={styles.footerText}>{data.stale ? 'Delayed' : 'Live'} · via CoinMarketCap</Text>
+        <View style={[styles.dot, { backgroundColor: stale ? Colors.amber : Colors.sage }]} />
+        <Text style={styles.footerText}>{stale ? 'Delayed' : 'Live'} · via CoinMarketCap</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rowWrap: { flexDirection: 'row', alignItems: 'stretch', gap: Spacing.sm },
+  allButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radii.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bg1,
+    paddingHorizontal: Spacing.md,
+    marginBottom: 4,
+  },
+  allText: { ...Type.small, fontFamily: Fonts.sansSemiBold, color: Colors.tx0 },
+  allChevron: { ...Type.h2, color: Colors.sage, lineHeight: 20 },
   row: { gap: Spacing.sm, paddingBottom: 4 },
   chip: {
     backgroundColor: Colors.bg1,
