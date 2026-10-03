@@ -4,7 +4,7 @@ import { Badge, BadgeVariant } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiQuery } from '@/hooks/use-api';
-import type { InvestmentPosition, Payment } from '@/lib/api-types';
+import type { Payment } from '@/lib/api-types';
 import { PurchaseRow } from './PurchaseRow';
 
 const BITREFILL_LOGO =
@@ -107,32 +107,6 @@ export function BillsSection({ purchasedCount, loading, purchases, onViewAll, on
           <Text style={styles.chevron}>›</Text>
         </Pressable>
       )}
-    </View>
-  );
-}
-
-export function InvestSection({ onBuy }: { onBuy: () => void }) {
-  const { data, isLoading } = useApiQuery<{ portfolio: InvestmentPosition[] }>(['investments'], '/api/investments');
-
-  return (
-    <View style={styles.list}>
-      <Button onPress={onBuy}>+ Buy an asset</Button>
-
-      {isLoading && <EmptyState text="Loading positions…" />}
-      {!isLoading && !data?.portfolio.length && <EmptyState text="No positions yet." />}
-      {!isLoading &&
-        data?.portfolio.map((item) => (
-          <View key={item.id} style={styles.row}>
-            <Text style={styles.rowIcon}>{item.icon}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{item.name}</Text>
-              <Text style={styles.rowSub}>
-                {item.shares} {item.symbol}
-              </Text>
-            </View>
-            <Text style={styles.rowAmount}>${item.currentValueUsd.toFixed(2)}</Text>
-          </View>
-        ))}
     </View>
   );
 }

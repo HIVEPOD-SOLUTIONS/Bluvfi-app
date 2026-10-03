@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ToastProvider } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { initRevenueCat } from '@/lib/revenuecat';
+import { initAds } from '@/lib/admob';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -65,6 +66,11 @@ function AuthGate() {
     // Mirrors bluvfi web's AppLayout: initialize RevenueCat once logged in.
     if (isAuthenticated && userId) initRevenueCat(userId);
   }, [isAuthenticated, userId]);
+
+  useEffect(() => {
+    // AdMob consent + init once signed in, so the rewarded ad is ready when the chat's daily limit is hit.
+    if (isAuthenticated) initAds();
+  }, [isAuthenticated]);
 
   if (!isReady) {
     return (

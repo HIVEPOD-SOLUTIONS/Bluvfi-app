@@ -4,7 +4,9 @@
  *
  * The SDK is loaded lazily (first use) instead of at import time: it is a large Node/browser-first
  * package, and a failure while loading it must only affect the wallet tabs that need it, never take
- * the whole app down at startup.
+ * the whole app down at startup. This uses require() rather than import(): Metro's dev server can't serve
+ * async import() chunks on Windows (the bundle URL contains backslashes), but require() inside a function is
+ * just as lazy and works everywhere.
  */
 
 // Chain names are the SDK's own string enum values (Blockchain.Base === 'Base', etc.), so these
@@ -36,7 +38,10 @@ let kitPromise: Promise<import('@circle-fin/app-kit').AppKit> | null = null;
 /** The shared AppKit instance, created on first use. */
 export function getArcKit() {
   if (!kitPromise) {
-    kitPromise = import('@circle-fin/app-kit').then(({ AppKit }) => new AppKit());
+    kitPromise = Promise.resolve().then(() => {
+      const { AppKit } = require('@circle-fin/app-kit') as typeof import('@circle-fin/app-kit');
+      return new AppKit();
+    });
     // Let a later attempt retry if loading failed.
     kitPromise.catch(() => {
       kitPromise = null;
@@ -47,7 +52,7 @@ export function getArcKit() {
 
 /** Wraps an EIP-1193 provider (e.g. the Privy embedded wallet) as an App Kit adapter. */
 export async function createEvmAdapter(provider: { request(args: { method: string; params?: unknown[] }): Promise<unknown> }) {
-  const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2');
+  const { createViemAdapterFromProvider } = require('@circle-fin/adapter-viem-v2') as typeof import('@circle-fin/adapter-viem-v2');
   return createViemAdapterFromProvider({
     provider: provider as Parameters<typeof createViemAdapterFromProvider>[0]['provider'],
   });

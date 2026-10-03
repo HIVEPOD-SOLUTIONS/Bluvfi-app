@@ -1,3 +1,7 @@
+// Privy's libraries read the `crypto` global when they load. Expo Router loads every route file up front, in
+// path order, and can reach this file before the root layout's polyfills import runs, so load them here first.
+import '@/lib/polyfills';
+
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';

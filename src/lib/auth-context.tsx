@@ -1,3 +1,7 @@
+// Privy's libraries read the `crypto` global when they load. Expo Router loads every route file up front, in
+// path order, and can reach this file before the root layout's polyfills import runs, so load them here first.
+import '@/lib/polyfills';
+
 import { createContext, useCallback, useContext, useEffect, ReactNode } from 'react';
 import {
   PrivyProvider as PrivySDKProvider,
@@ -9,6 +13,9 @@ import {
 } from '@privy-io/expo';
 import { useLoginWithPasskey, useSignupWithPasskey } from '@privy-io/expo/passkey';
 import { PrivyElements } from '@privy-io/expo/ui';
+import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
+import type { Chain } from 'viem';
+import { domaChain } from '@/lib/doma-chain';
 
 /**
  * Relying-party domain for passkeys — matches bluvfi web's domain. Passkey
@@ -20,6 +27,12 @@ import { PrivyElements } from '@privy-io/expo/ui';
  * the code path itself is correct.
  */
 const PASSKEY_RELYING_PARTY = 'bluvfi.xyz';
+
+/**
+ * Every EVM chain the wallet pays on (same list as bluvfi web's Privy config), so wallet_switchEthereumChain
+ * succeeds when a payment is on Polygon, Arbitrum, Optimism, Ethereum or the Doma chain (domain orders).
+ */
+const SUPPORTED_CHAINS: [Chain, ...Chain[]] = [base, polygon, arbitrum, optimism, mainnet, domaChain];
 
 interface AuthContextType {
   isReady: boolean;
@@ -41,6 +54,14 @@ interface AuthContextType {
   getAccessToken: () => Promise<string | null>;
   /** EIP-1193 provider of the user's embedded EVM wallet (signs silently; no external wallet needed). */
   getEvmProvider: () => Promise<{ request(args: { method: string; params?: unknown[] }): Promise<unknown> }>;
+  /** The embedded EVM wallet (address + provider) for payments; throws if it isn't ready yet. */
+  getEvmWallet: () => {
+    address: string;
+    getProvider: () => Promise<{ request(args: { method: string; params?: unknown[] }): Promise<unknown> }>;
+    getAccessToken: () => Promise<string | null>;
+  };
+  /** Provider of the user's embedded Solana wallet (signTransaction / signAndSendTransaction). */
+  getSolanaProvider: () => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -83,6 +104,18 @@ function AuthBridge({ children }: { children: ReactNode }) {
     if (!wallet) throw new Error('Your wallet is still being set up. Try again in a moment.');
     return wallet.getProvider();
   }, [ethereum.wallets]);
+
+  const getEvmWallet = useCallback(() => {
+    const wallet = ethereum.wallets[0];
+    if (!wallet) throw new Error('Your wallet is still being set up. Try again in a moment.');
+    return { address: wallet.address, getProvider: () => wallet.getProvider(), getAccessToken };
+  }, [ethereum.wallets, getAccessToken]);
+
+  const getSolanaProvider = useCallback(async () => {
+    const wallet = solana.wallets?.[0];
+    if (!wallet) throw new Error('Your Solana wallet is still being set up. Try again in a moment.');
+    return wallet.getProvider();
+  }, [solana.wallets]);
 
   const loginWithGoogle = useCallback(async () => {
     // The browser returns to bluvfi:///oauth-callback, a real route (app/oauth-callback.tsx) that exists
@@ -129,6 +162,8 @@ function AuthBridge({ children }: { children: ReactNode }) {
     logout,
     getAccessToken,
     getEvmProvider,
+    getEvmWallet,
+    getSolanaProvider,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -139,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clientId = process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID!;
 
   return (
-    <PrivySDKProvider appId={appId} clientId={clientId}>
+    <PrivySDKProvider appId={appId} clientId={clientId} supportedChains={SUPPORTED_CHAINS}>
       <AuthBridge>{children}</AuthBridge>
       {/* Hosts Privy's own modal UIs, which the card-funding flow (useFundWallet) opens. */}
       <PrivyElements />

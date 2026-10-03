@@ -1,29 +1,34 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { PaywallSheet } from '@/components/paywall/PaywallSheet';
-import { BuyAssetSheet } from '@/components/invest/BuyAssetSheet';
+import { StockSheet } from '@/components/invest/StockSheet';
+import { StockWithdrawSheet } from '@/components/invest/StockWithdrawSheet';
+import { InvestScreen, type ProviderId } from '@/components/invest/InvestScreen';
+import { BackpackSheet, ProviderSheet } from '@/components/invest/InvestSheets';
 import { OnrampSheet } from '@/components/banking/OnrampSheet';
 import { OfframpSheet } from '@/components/banking/OfframpSheet';
 import { Avatar, usePremium } from '@/components/profile/ProfileContent';
 import { ProfileDrawer } from '@/components/profile/ProfileDrawer';
 import { FundWalletSheet } from '@/components/dashboard/FundWalletSheet';
+import { PriceTicker } from '@/components/dashboard/PriceTicker';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
 import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
 import {
   BankingSection,
   BillsSection,
   HistorySection,
-  InvestSection,
 } from '@/components/dashboard/DashboardSections';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { useChatSheet } from '@/lib/chat-context';
+import { getTimeBasedGreeting } from '@/lib/greeting';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { useApiQuery } from '@/hooks/use-api';
-import type { InvestmentPosition, Payment } from '@/lib/api-types';
+import type { Payment } from '@/lib/api-types';
+import { useStocksPortfolio, type StockRow } from '@/hooks/use-stocks';
 
 /** Same thresholds as bluvfi web: under $10 in stablecoins and under 5 XRP counts as a low balance. */
 const LOW_BALANCE_THRESHOLD_USD = 10;
@@ -37,15 +42,6 @@ const TABS: { key: DashboardTab; label: string; icon: string }[] = [
   { key: 'banking', label: 'Banking', icon: '🏦' },
   { key: 'history', label: 'History', icon: '💳' },
 ];
-
-function getTimeBasedGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 5) return 'Good night';
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  if (hour < 21) return 'Good evening';
-  return 'Good night';
-}
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
@@ -74,10 +70,14 @@ export default function HomeScreen() {
   const [tab, setTab] = useState<DashboardTab>('bills');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [fundOpen, setFundOpen] = useState(false);
+  const { openChat, walletOpen, openWallet, closeWallet } = useChatSheet();
+  const [askText, setAskText] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [purchasesOpen, setPurchasesOpen] = useState(false);
-  const [buyOpen, setBuyOpen] = useState(false);
+  const [selectedStock, setSelectedStock] = useState<StockRow | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [backpackKind, setBackpackKind] = useState<'stock' | 'etf' | null>(null);
+  const [provider, setProvider] = useState<ProviderId | null>(null);
   const [onrampOpen, setOnrampOpen] = useState(false);
   const [offrampOpen, setOfframpOpen] = useState(false);
 
@@ -88,14 +88,12 @@ export default function HomeScreen() {
     '/api/payments',
     { type: 'bill', limit: 100 },
   );
-  const { data: investData } = useApiQuery<{ portfolio: InvestmentPosition[]; totalValueUsd: number }>(
-    ['investments'],
-    '/api/investments',
-  );
+  // Real holdings: US stocks and ETFs traded through Backpack (the same /api/stocks the Invest tab uses).
+  const { data: stocksPortfolio } = useStocksPortfolio();
 
   const purchasedCount = billPayments?.payments.filter((p) => p.status === 'completed').length ?? 0;
-  const portfolioValue = investData?.totalValueUsd ?? 0;
-  const positionCount = investData?.portfolio.length ?? 0;
+  const portfolioValue = stocksPortfolio?.totalUsd ?? 0;
+  const positionCount = stocksPortfolio?.positions.length ?? 0;
   const greeting = getTimeBasedGreeting();
 
   const evmTotal = (balances?.evmUsdc ?? 0) + (balances?.evmUsdt ?? 0);
@@ -111,9 +109,12 @@ export default function HomeScreen() {
     totalBalance < LOW_BALANCE_THRESHOLD_USD &&
     (xrp.balance ?? 0) < LOW_XRP_THRESHOLD;
 
-  /** Opens AI Chat; with a prompt, the assistant starts on it right away (web: sendMessage + openChat). */
-  const openChat = (prompt?: string) =>
-    router.navigate(prompt ? { pathname: '/chat', params: { prompt, n: String(Date.now()) } } : '/chat');
+  const submitAsk = () => {
+    const text = askText.trim();
+    if (!text) return;
+    setAskText('');
+    openChat(text);
+  };
 
   return (
     <View style={styles.screen}>
@@ -149,7 +150,7 @@ export default function HomeScreen() {
               <Text style={styles.bannerIcon}>⚠</Text>
               <Text style={styles.bannerText}>Low balance ({usd(totalBalance)}) — payments may fail</Text>
             </View>
-            <Pressable onPress={() => setFundOpen(true)} style={styles.bannerButton}>
+            <Pressable onPress={() => openWallet()} style={styles.bannerButton}>
               <Text style={styles.bannerButtonText}>Add Funds</Text>
             </Pressable>
           </View>
@@ -179,7 +180,7 @@ export default function HomeScreen() {
 
           {evmAddress && (
             <Pressable
-              onPress={() => setFundOpen(true)}
+              onPress={() => openWallet()}
               style={[styles.statCard, styles.walletCard, balanceIsLow && styles.walletCardLow]}
             >
               <Text style={styles.statLabel}>Wallets</Text>
@@ -198,6 +199,11 @@ export default function HomeScreen() {
               <Text style={[styles.statSub, { color: Colors.sage }]}>+ Add</Text>
             </Pressable>
           )}
+        </View>
+
+        {/* Live crypto prices (CoinMarketCap). Hidden entirely if the server has no key. */}
+        <View style={styles.ticker}>
+          <PriceTicker />
         </View>
 
         <View style={styles.tabRow}>
@@ -224,7 +230,14 @@ export default function HomeScreen() {
               onOpenBitrefill={() => setCatalogOpen(true)}
             />
           )}
-          {tab === 'invest' && <InvestSection onBuy={() => setBuyOpen(true)} />}
+          {tab === 'invest' && (
+            <InvestScreen
+              onAskAi={openChat}
+              onOpenBackpack={setBackpackKind}
+              onOpenProvider={setProvider}
+              onSelectStock={setSelectedStock}
+            />
+          )}
           {tab === 'banking' && (
             <BankingSection onAddFunds={() => setOnrampOpen(true)} onWithdraw={() => setOfframpOpen(true)} />
           )}
@@ -232,10 +245,23 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Ask bar: opens the AI chat, like the web dashboard's "Ask Bluvfi anything…" input. */}
-      <Pressable onPress={() => openChat()} style={styles.askBar} accessibilityRole="button" accessibilityLabel="Ask Bluvfi">
-        <Text style={styles.askText}>Ask Bluvfi anything…</Text>
-      </Pressable>
+      {/* Ask bar: type here and the AI chat sheet opens with your question, like the web dashboard. */}
+      <View style={styles.askBar}>
+        <TextInput
+          style={styles.askInput}
+          placeholder="Ask Bluvfi anything…"
+          placeholderTextColor={Colors.tx2}
+          value={askText}
+          onChangeText={setAskText}
+          onSubmitEditing={submitAsk}
+          returnKeyType="send"
+        />
+        {askText.trim().length > 0 && (
+          <Pressable onPress={submitAsk} style={styles.askSend} accessibilityRole="button" accessibilityLabel="Send">
+            <Text style={styles.askSendText}>↑</Text>
+          </Pressable>
+        )}
+      </View>
 
       <ProfileDrawer
         open={drawerOpen}
@@ -254,12 +280,26 @@ export default function HomeScreen() {
         featureName="Bluvfi Premium"
       />
       <FundWalletSheet
-        open={fundOpen}
-        onClose={() => setFundOpen(false)}
+        open={walletOpen}
+        onClose={closeWallet}
         evmAddress={evmAddress}
         solanaAddress={solanaAddress}
       />
-      <BuyAssetSheet open={buyOpen} onClose={() => setBuyOpen(false)} />
+      <BackpackSheet
+        kind={backpackKind}
+        onChangeKind={setBackpackKind}
+        onClose={() => setBackpackKind(null)}
+        onSelectStock={setSelectedStock}
+        onWithdraw={() => setWithdrawOpen(true)}
+      />
+      <ProviderSheet provider={provider} onClose={() => setProvider(null)} onAsk={openChat} />
+      <StockSheet
+        stock={selectedStock}
+        portfolio={stocksPortfolio}
+        enabled={stocksPortfolio?.tradingEnabled ?? true}
+        onClose={() => setSelectedStock(null)}
+      />
+      <StockWithdrawSheet open={withdrawOpen} cashUsd={stocksPortfolio?.cashUsd ?? 0} onClose={() => setWithdrawOpen(false)} />
       <OnrampSheet open={onrampOpen} onClose={() => setOnrampOpen(false)} />
       <OfframpSheet open={offrampOpen} onClose={() => setOfframpOpen(false)} />
       <PurchasesSheet
@@ -413,6 +453,9 @@ const styles = StyleSheet.create({
     fontFamily: Type.amount.fontFamily,
     color: Colors.tx0,
   },
+  ticker: {
+    marginTop: Spacing.md,
+  },
   tabRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
@@ -453,11 +496,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 999,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: Spacing.xl,
+    paddingRight: Spacing.sm,
   },
-  askText: {
+  askInput: {
     ...Type.body,
-    color: Colors.tx2,
+    flex: 1,
+    color: Colors.tx0,
+    paddingVertical: Spacing.lg,
+  },
+  askSend: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askSendText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    lineHeight: 20,
   },
 });

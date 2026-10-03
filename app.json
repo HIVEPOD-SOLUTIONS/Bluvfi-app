@@ -1,4 +1,7 @@
 {
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-4986320440788963~9278420291"
+  },
   "expo": {
     "name": "Bluvfi",
     "slug": "bluvfi",
@@ -38,7 +41,13 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-apple-authentication",
-      "./plugins/with-limited-cpp-parallelism"
+      "./plugins/with-limited-cpp-parallelism",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4986320440788963~9278420291"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

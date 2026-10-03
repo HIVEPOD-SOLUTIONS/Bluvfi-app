@@ -1,6 +1,8 @@
 import { Tabs } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, Type, BottomNavHeight } from '@/constants/theme';
+import { ChatSheet } from '@/components/chat/ChatSheet';
+import { ChatProvider, useChatSheet } from '@/lib/chat-context';
 
 function HomeIcon({ color }: { color: string }) {
   return (
@@ -31,8 +33,10 @@ function ProfileIcon({ color }: { color: string }) {
   );
 }
 
-export default function TabsLayout() {
+function TabsWithChat() {
+  const { openChat } = useChatSheet();
   return (
+    <>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -53,8 +57,28 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <HomeIcon color={String(color)} /> }} />
-      <Tabs.Screen name="chat" options={{ title: 'AI Chat', tabBarIcon: ({ color }) => <ChatIcon color={String(color)} /> }} />
+      <Tabs.Screen
+        name="chat"
+        options={{ title: 'AI Chat', tabBarIcon: ({ color }) => <ChatIcon color={String(color)} /> }}
+        listeners={{
+          // AI Chat is a sheet over the current screen (like the web chat), not a page of its own.
+          tabPress: (e) => {
+            e.preventDefault();
+            openChat();
+          },
+        }}
+      />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <ProfileIcon color={String(color)} /> }} />
     </Tabs>
+    <ChatSheet />
+    </>
+  );
+}
+
+export default function TabsLayout() {
+  return (
+    <ChatProvider>
+      <TabsWithChat />
+    </ChatProvider>
   );
 }
