@@ -6,7 +6,10 @@ import { PaywallSheet } from '@/components/paywall/PaywallSheet';
 import { StockSheet } from '@/components/invest/StockSheet';
 import { StockWithdrawSheet } from '@/components/invest/StockWithdrawSheet';
 import { InvestScreen, type ProviderId } from '@/components/invest/InvestScreen';
-import { BackpackSheet, ProviderSheet } from '@/components/invest/InvestSheets';
+import { BackpackSheet } from '@/components/invest/InvestSheets';
+import { NosanaSheet } from '@/components/invest/NosanaSheet';
+import { GetEquitySheet } from '@/components/invest/GetEquitySheet';
+import { DomaSheet } from '@/components/invest/DomaSheet';
 import { OnrampSheet } from '@/components/banking/OnrampSheet';
 import { OfframpSheet } from '@/components/banking/OfframpSheet';
 import { Avatar, usePremium } from '@/components/profile/ProfileContent';
@@ -292,7 +295,9 @@ export default function HomeScreen() {
         onSelectStock={setSelectedStock}
         onWithdraw={() => setWithdrawOpen(true)}
       />
-      <ProviderSheet provider={provider} onClose={() => setProvider(null)} onAsk={openChat} />
+      <NosanaSheet open={provider === 'nosana'} onClose={() => setProvider(null)} onAsk={openChat} />
+      <GetEquitySheet open={provider === 'getequity'} onClose={() => setProvider(null)} onAsk={openChat} />
+      <DomaSheet open={provider === 'doma'} onClose={() => setProvider(null)} onAsk={openChat} />
       <StockSheet
         stock={selectedStock}
         portfolio={stocksPortfolio}

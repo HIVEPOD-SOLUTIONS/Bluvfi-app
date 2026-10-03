@@ -136,6 +136,9 @@ export function ToolResultCard({ toolName, output }: { toolName: string; output:
     );
   }
 
+  const invest = renderInvestCard(toolName, data);
+  if (invest) return invest;
+
   // Everything else: a compact key/value summary.
   const rows = summarize(data);
   if (rows.length === 0) return null;
@@ -295,6 +298,169 @@ function ListCard({ title, rows, emptyText }: { title: string; rows: ListRow[]; 
       ))}
     </View>
   );
+}
+
+// ─── Invest providers (Backpack stocks, Nosana, GetEquity) ────────────────────
+
+const usd2 = (n: unknown) => `$${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const signedPct = (n: unknown) => `${Number(n) >= 0 ? '+' : ''}${Number(n ?? 0).toFixed(2)}%`;
+const pctColor = (n: unknown) => (Number(n) >= 0 ? Colors.sage : Colors.redAlert);
+
+/** First array of objects in a GetEquity-style response ({ data: [...] }, { tokens: [...] }, a bare array...). */
+function firstObjectArray(data: any): any[] | null {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return null;
+  for (const key of ['data', 'tokens', 'results', 'items', 'orders', 'transactions', 'holdings', 'balances']) {
+    const v = data[key];
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') {
+      const nested = firstObjectArray(v);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function renderInvestCard(toolName: string, data: any) {
+  // Backpack stocks & ETFs
+  if (toolName === 'search_stocks' && Array.isArray(data?.results)) {
+    return (
+      <ListCard
+        title={`Stocks · market ${data.market ?? ''}`}
+        emptyText="No match."
+        rows={data.results.map((r: any) => ({
+          key: String(r.ticker),
+          title: r.ticker,
+          sub: r.name,
+          right: r.price != null ? usd2(r.price) : '—',
+          rightSub: r.changePctToday != null ? signedPct(r.changePctToday) : undefined,
+          rightSubColor: pctColor(r.changePctToday),
+        }))}
+      />
+    );
+  }
+  if (toolName === 'get_stock' && data?.ticker) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>{data.ticker}</Text>
+          <Text style={styles.rowTitle}>{data.price != null ? usd2(data.price) : '—'}</Text>
+        </View>
+        <Text style={styles.sub}>{data.name}</Text>
+        <Text style={[styles.sub, { color: pctColor(data.changePctToday) }]}>
+          {data.changePctToday != null ? `${signedPct(data.changePctToday)} today` : ''}
+          {data.changePct1Month != null ? `   ${signedPct(data.changePct1Month)} this month` : ''}
+        </Text>
+        {data.dayLow != null && data.dayHigh != null ? (
+          <Text style={styles.sub}>Day range {usd2(data.dayLow)} – {usd2(data.dayHigh)}</Text>
+        ) : null}
+        <Text style={styles.sub}>Market {data.market}</Text>
+      </View>
+    );
+  }
+  if (toolName === 'get_stock_portfolio' && Array.isArray(data?.positions)) {
+    return (
+      <ListCard
+        title={`Stock portfolio · ${usd2(data.totalUsd)}${data.creditUsd > 0 ? ` (incl. ${usd2(data.creditUsd)} credit)` : ''}`}
+        emptyText="No positions yet."
+        rows={data.positions.map((p: any) => ({
+          key: String(p.ticker),
+          title: p.ticker,
+          sub: `${p.shares} shares · ${usd2(p.price)}`,
+          right: usd2(p.valueUsd),
+          rightSub: signedPct(p.changePctToday),
+          rightSubColor: pctColor(p.changePctToday),
+        }))}
+      />
+    );
+  }
+
+  // Nosana GPU cloud
+  if (toolName === 'nosana_list_deployments' && Array.isArray(data?.deployments)) {
+    return (
+      <ListCard
+        title="GPU deployments"
+        emptyText="No deployments yet."
+        rows={data.deployments.map((d: any) => ({
+          key: String(d.id),
+          title: d.name,
+          sub: d.endpoint ?? `${d.replicas ?? 1} replica${(d.replicas ?? 1) !== 1 ? 's' : ''} · ${d.strategy ?? ''}`,
+          right: d.status,
+          rightSubColor: d.status === 'RUNNING' ? Colors.sage : undefined,
+        }))}
+      />
+    );
+  }
+  if (
+    ['nosana_get_deployment', 'nosana_create_deployment', 'nosana_start_deployment', 'nosana_stop_deployment', 'nosana_archive_deployment'].includes(toolName) &&
+    data?.id
+  ) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title} numberOfLines={1}>{data.name}</Text>
+          <View style={styles.tag}>
+            <Text style={styles.tagText}>{String(data.status).toLowerCase().replace(/_/g, ' ')}</Text>
+          </View>
+        </View>
+        <Text style={styles.tinyMono} numberOfLines={1}>{data.id}</Text>
+        {data.endpoint ? (
+          <Text style={[styles.sub, { color: Colors.sage, textDecorationLine: 'underline' }]} onPress={() => Linking.openURL(data.endpoint)}>
+            {data.endpoint}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+  if (toolName === 'nosana_list_markets' && Array.isArray(data)) {
+    return (
+      <ListCard
+        title="GPU markets"
+        rows={data.slice(0, 12).map((m: any) => ({
+          key: String(m.address),
+          title: m.name,
+          sub: `${m.gpu}${m.vram != null ? ` · ${m.vram}GB` : ''} · ${m.type}`,
+          right: `${Number(m.price_nos_per_hour).toFixed(3)} NOS/hr`,
+        }))}
+      />
+    );
+  }
+  if (toolName === 'nosana_get_credits' && data?.assignedCredits != null) {
+    const available = Number(data.assignedCredits) - Number(data.reservedCredits) - Number(data.settledCredits);
+    return (
+      <View style={styles.card}>
+        <Text style={styles.label}>Nosana credits</Text>
+        <Text style={styles.title}>{available.toFixed(4)} NOS available</Text>
+        <Text style={styles.sub}>
+          Assigned {Number(data.assignedCredits).toFixed(2)} · Reserved {Number(data.reservedCredits).toFixed(2)} · Settled {Number(data.settledCredits).toFixed(2)}
+        </Text>
+      </View>
+    );
+  }
+
+  // GetEquity private markets: its responses aren't typed on our side, so list whatever objects come back.
+  if (toolName.startsWith('getequity_') && !data?.getEquityPayment) {
+    const list = firstObjectArray(data);
+    if (list && list.length > 0 && typeof list[0] === 'object') {
+      const title = formatToolName(toolName.replace(/^getequity_/, ''));
+      return (
+        <ListCard
+          title={`GetEquity · ${title}`}
+          rows={list.slice(0, 10).map((r: any, i: number) => {
+            const name = r.name ?? r.token_name ?? r.symbol ?? r.currency ?? r.type ?? r.reference ?? `Item ${i + 1}`;
+            const amount = r.price ?? r.amount ?? r.balance ?? r.value ?? r.total;
+            return {
+              key: String(r.id ?? r._id ?? r.token_id ?? i),
+              title: String(name),
+              sub: [r.symbol, r.investment_type, r.status].filter(Boolean).join(' · ') || undefined,
+              right: amount != null ? String(amount) : undefined,
+            };
+          })}
+        />
+      );
+    }
+  }
+  return null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
