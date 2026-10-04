@@ -56,8 +56,8 @@ function SendIcon() {
 }
 
 /**
- * The AI chat, as a sheet that slides up over the dashboard (like the web chat): Bluvfi mark and BETA
- * tag at the top, the conversation, and the "Ask Bluvfi anything…" bar. Text only; there is no voice input.
+ * The AI chat, as a sheet that slides up over the dashboard (like the web chat): Bluvfi mark
+ * at the top, the conversation, and the "Ask Bluvfi anything…" bar (type, or tap the mic to talk).
  */
 export function ChatSheet() {
   const insets = useSafeAreaInsets();
@@ -230,9 +230,6 @@ export function ChatSheet() {
           <View style={styles.grabber} />
           <Pressable onPress={closeChat} style={styles.brand} accessibilityRole="button" accessibilityLabel="Close chat">
             <Logo size={32} />
-            <View style={styles.betaChip}>
-              <Text style={styles.betaText}>Beta</Text>
-            </View>
           </Pressable>
         </View>
 
@@ -432,18 +429,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 4,
-  },
-  betaChip: {
-    backgroundColor: Colors.bg2,
-    borderRadius: 4,
-    paddingVertical: 1,
-    paddingHorizontal: 5,
-    marginTop: -2,
-  },
-  betaText: {
-    ...Type.label,
-    fontSize: 9,
-    color: Colors.tx1,
   },
   messages: {
     paddingHorizontal: Spacing.xl,

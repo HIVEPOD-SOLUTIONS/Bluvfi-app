@@ -141,9 +141,6 @@ export default function HomeScreen() {
 
           <View style={styles.brand}>
             <Text style={styles.brandText}>Bluvfi</Text>
-            <View style={styles.betaChip}>
-              <Text style={styles.betaText}>Beta</Text>
-            </View>
           </View>
 
           <Pressable onPress={() => openChat()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Open chat">
@@ -368,16 +365,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   brandText: {
-    ...Type.label,
-    color: Colors.tx1,
-  },
-  betaChip: {
-    backgroundColor: Colors.bg2,
-    borderRadius: Radii.sm,
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.sm,
-  },
-  betaText: {
     ...Type.label,
     color: Colors.tx1,
   },
