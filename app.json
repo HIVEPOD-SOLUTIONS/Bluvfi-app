@@ -11,13 +11,12 @@
     "scheme": "bluvfi",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.bluvfi.xyz"
     },
     "android": {
       "package": "com.bluvfi.xyz",
       "adaptiveIcon": {
-        "backgroundColor": "#0F100D",
+        "backgroundColor": "#0000CC",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"

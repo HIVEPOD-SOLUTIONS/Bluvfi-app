@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { hasEntitlement } from '@/lib/revenuecat';
@@ -124,6 +125,7 @@ interface ProfileContentProps {
 export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: ProfileContentProps) {
   const { email, evmAddress, solanaAddress, logout } = useAuth();
   const { data: balances, isLoading: balancesLoading } = useBalances(evmAddress, solanaAddress);
+  const { wallet: connectedWallet } = useConnectedWallet();
   const xrpl = useXrplWallet();
   const xrplBalance = useXrpBalance(!!xrpl.address);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -168,6 +170,7 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
 
       <AddressRow label="EVM WALLET" address={evmAddress} />
       <AddressRow label="SOLANA WALLET" address={solanaAddress} />
+      {connectedWallet ? <AddressRow label={`CONNECTED · ${connectedWallet.name.toUpperCase()}`} address={connectedWallet.address} /> : null}
       {!xrpl.unavailable && (
         xrpl.address ? (
           <AddressRow label="XRPL WALLET" address={xrpl.address} />

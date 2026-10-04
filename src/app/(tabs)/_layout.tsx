@@ -3,6 +3,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, Type, BottomNavHeight } from '@/constants/theme';
 import { ChatSheet } from '@/components/chat/ChatSheet';
 import { ChatProvider, useChatSheet } from '@/lib/chat-context';
+import { WalletConnectionProvider } from '@/lib/wallet-connection';
 
 function HomeIcon({ color }: { color: string }) {
   return (
@@ -86,8 +87,10 @@ function TabsWithChat() {
 
 export default function TabsLayout() {
   return (
-    <ChatProvider>
-      <TabsWithChat />
-    </ChatProvider>
+    <WalletConnectionProvider>
+      <ChatProvider>
+        <TabsWithChat />
+      </ChatProvider>
+    </WalletConnectionProvider>
   );
 }

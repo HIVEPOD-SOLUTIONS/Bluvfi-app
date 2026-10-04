@@ -9,6 +9,7 @@ import { useFundSolanaWallet, useFundWallet } from '@privy-io/expo/ui';
 import { arbitrum, avalanche, base, mainnet, optimism, polygon } from 'viem/chains';
 import type { Chain } from 'viem';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { ConnectedWalletCard } from '@/components/wallet/ConnectedWalletCard';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiClient } from '@/hooks/use-api';
@@ -170,6 +171,8 @@ function SolanaTab({ solanaAddress }: { solanaAddress?: string }) {
 
   return (
     <View style={styles.stack}>
+      <ConnectedWalletCard bluvfiSolanaAddress={solanaAddress} />
+
       <View style={styles.solBalanceCard}>
         <Text style={styles.solLabel}>Solana USDC Balance</Text>
         <Text style={styles.solBalance}>{isLoading ? 'Loading…' : usd(data?.solUsdc ?? 0)}</Text>
@@ -189,7 +192,7 @@ function SolanaTab({ solanaAddress }: { solanaAddress?: string }) {
       </View>
 
       <View style={styles.solInstructions}>
-        <Text style={styles.solInstructionsTitle}>◎ Fund your Solana wallet</Text>
+        <Text style={styles.solInstructionsTitle}>◎ Or send to your Solana wallet manually</Text>
         {[
           ['Send ', 'USDC on Solana mainnet', ' to the address above'],
           ['From Phantom, Backpack, Coinbase Wallet, or any Solana wallet'],
