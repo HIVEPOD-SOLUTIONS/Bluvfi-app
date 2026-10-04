@@ -16,6 +16,8 @@ import { Avatar, usePremium } from '@/components/profile/ProfileContent';
 import { ProfileDrawer } from '@/components/profile/ProfileDrawer';
 import { FundWalletSheet } from '@/components/dashboard/FundWalletSheet';
 import { PriceTicker } from '@/components/dashboard/PriceTicker';
+import { CoinSheet } from '@/components/crypto/CoinSheet';
+import type { SupportedCoin } from '@/hooks/use-crypto-prices';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
 import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
 import {
@@ -79,6 +81,7 @@ export default function HomeScreen() {
   const [purchasesOpen, setPurchasesOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<StockRow | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [selectedCoin, setSelectedCoin] = useState<SupportedCoin | null>(null);
   const [backpackKind, setBackpackKind] = useState<'stock' | 'etf' | null>(null);
   const [provider, setProvider] = useState<ProviderId | null>(null);
   const [onrampOpen, setOnrampOpen] = useState(false);
@@ -206,7 +209,7 @@ export default function HomeScreen() {
 
         {/* Live crypto prices (CoinMarketCap). Hidden entirely if the server has no key. */}
         <View style={styles.ticker}>
-          <PriceTicker />
+          <PriceTicker onSelectCoin={setSelectedCoin} />
         </View>
 
         <View style={styles.tabRow}>
@@ -282,6 +285,7 @@ export default function HomeScreen() {
         onPurchased={() => setIsPremium(true)}
         featureName="Bluvfi Premium"
       />
+      <CoinSheet coin={selectedCoin} onClose={() => setSelectedCoin(null)} onAsk={openChat} />
       <FundWalletSheet
         open={walletOpen}
         onClose={closeWallet}

@@ -88,7 +88,7 @@ function AuthGate() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg0 } }}>
       {isAuthenticated
-        ? [<Stack.Screen key="tabs" name="(tabs)" />, <Stack.Screen key="coins" name="coins" />, <Stack.Screen key="oauth-callback" name="oauth-callback" />]
+        ? [<Stack.Screen key="tabs" name="(tabs)" />, <Stack.Screen key="oauth-callback" name="oauth-callback" />]
         : [
             <Stack.Screen key="onboarding" name="onboarding" />,
             <Stack.Screen key="login" name="login" />,

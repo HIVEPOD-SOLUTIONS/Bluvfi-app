@@ -5,6 +5,8 @@ import { useApiClient, useApiQuery } from './use-api';
 /** Live crypto prices for the dashboard ticker, from bluvfi's `/api/prices` (CoinMarketCap, cached server-side). */
 
 export interface CoinPrice {
+  /** CoinMarketCap id, for the logo. Missing on the legacy four-coin feed. */
+  id?: number | string;
   symbol: string;
   name: string;
   priceUsd: number;
@@ -63,8 +65,9 @@ export interface SupportedCoinsSnapshot {
  * Prices for every crypto token the providers support (/api/prices/supported). An older backend without that
  * route answers 404, which callers treat as "fall back to the four-coin /api/prices ticker".
  */
-export function useSupportedCoins() {
+export function useSupportedCoins(enabled = true) {
   return useApiQuery<SupportedCoinsSnapshot>(['supported-coins'], '/api/prices/supported', undefined, {
+    enabled,
     refetchInterval: (query) => (notConfigured(query.state.error) ? false : POLL_MS),
     staleTime: POLL_MS - 5_000,
     retry: (count, error) => !notConfigured(error) && !(error instanceof ApiError && error.status === 404) && count < 2,
@@ -88,8 +91,9 @@ export function useAllCoins() {
     initialPageParam: 1,
     queryFn: ({ pageParam }) => call<AllCoinsPage>('/api/prices/all', { query: { start: pageParam, limit: PAGE_SIZE } }),
     getNextPageParam: (last) => last.nextStart ?? undefined,
-    staleTime: POLL_MS,
-    refetchInterval: POLL_MS * 2,
+    staleTime: POLL_MS - 5_000,
+    // The server caches CoinMarketCap for ~60s, so polling every 30s keeps prices as live as the feed itself is.
+    refetchInterval: POLL_MS,
     retry: (count, error) => !notConfigured(error) && !(error instanceof ApiError && error.status === 404) && count < 2,
   });
 }

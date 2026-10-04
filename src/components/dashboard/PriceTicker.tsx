@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
-import { useCryptoPrices, useSupportedCoins, type CoinPrice } from '@/hooks/use-crypto-prices';
+import { CoinLogo } from '@/components/crypto/CoinLogo';
+import { useLiveConnected, useLiveCoins, usePriceFlash } from '@/hooks/use-live-prices';
+import { useAllCoins, useCryptoPrices, useSupportedCoins, type CoinPrice, type SupportedCoin } from '@/hooks/use-crypto-prices';
+
+/** How many of the top coins the home strip shows; the Crypto tab lists them all. */
+const TICKER_COINS = 50;
 
 /** $64,231.55 for normal prices; more decimals below $1 so a coin like XRP still shows movement. */
 function formatCoinPrice(n: number): string {
@@ -10,53 +14,74 @@ function formatCoinPrice(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
-function PriceChip({ coin }: { coin: CoinPrice }) {
-  // Brief green/red flash when the price ticks, so movement is noticeable without watching the numbers.
-  const prev = useRef(coin.priceUsd);
-  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
-  useEffect(() => {
-    if (coin.priceUsd === prev.current) return;
-    setFlash(coin.priceUsd > prev.current ? 'up' : 'down');
-    prev.current = coin.priceUsd;
-    const t = setTimeout(() => setFlash(null), 1200);
-    return () => clearTimeout(t);
-  }, [coin.priceUsd]);
+/** Legacy four-coin feed has no ids; these are CoinMarketCap's, so the logos still show. */
+const LEGACY_IDS: Record<string, number> = { BTC: 1, ETH: 1027, SOL: 5426, XRP: 52 };
 
+/** The full row for a tapped chip (market cap, 7d, providers…), else what the chip itself knows. */
+function toDetail(chip: CoinPrice, rows?: SupportedCoin[]): SupportedCoin {
+  const full = rows?.find((r) => r.symbol === chip.symbol);
+  // Keep the chip's price: it may be newer than the row's, thanks to the real-time stream.
+  if (full) return { ...full, priceUsd: chip.priceUsd, change24h: chip.change24h };
+  return { id: chip.id, symbol: chip.symbol, name: chip.name, rank: null, priceUsd: chip.priceUsd, change1h: chip.change1h, change24h: chip.change24h, change7d: null, marketCap: null, providers: [] };
+}
+
+function PriceChip({ coin, onPress }: { coin: CoinPrice; onPress: () => void }) {
+  // Brief green/red flash when the price ticks, so movement is noticeable without watching the numbers.
+  const flash = usePriceFlash(coin.priceUsd);
   const change = coin.change24h;
   const up = change !== null && change >= 0;
   const priceColor = flash === 'up' ? Colors.sage : flash === 'down' ? Colors.redAlert : Colors.tx0;
 
   return (
-    <View style={styles.chip}>
+    <Pressable onPress={onPress} style={styles.chip} accessibilityRole="button" accessibilityLabel={`${coin.name} details`}>
       <View style={styles.chipTop}>
+        <CoinLogo id={coin.id ?? LEGACY_IDS[coin.symbol]} symbol={coin.symbol} size={20} />
         <Text style={styles.symbol}>{coin.symbol}</Text>
         {change !== null && (
-          <Text style={[styles.change, { color: up ? Colors.sage : Colors.redAlert }]}>
+          <Text style={[styles.change, { color: up ? Colors.sage : Colors.redAlert, marginLeft: 'auto' }]}>
             {up ? '▲' : '▼'} {Math.abs(change).toFixed(2)}%
           </Text>
         )}
       </View>
       <Text style={[styles.price, { color: priceColor }]}>{formatCoinPrice(coin.priceUsd)}</Text>
-    </View>
+    </Pressable>
   );
 }
 
 /**
- * Live crypto price strip for the dashboard: every token the providers support (falls back to the four-coin feed
- * on a backend without /api/prices/supported), with an "All" button on the right that opens the full vertical list.
+ * Live crypto price strip for the dashboard: the top coins on the market by market cap, with an "All" button on the right that opens the full vertical list.
  * Renders nothing when no feed is configured or has ever loaded — a missing ticker beats an error banner on the
  * home screen for something purely informational.
  */
-export function PriceTicker() {
+export function PriceTicker({ onSelectCoin }: { onSelectCoin: (coin: SupportedCoin) => void }) {
   const router = useRouter();
-  const all = useSupportedCoins();
-  const basic = useCryptoPrices(all.isError);
+  // The market itself: top coins by market cap, refreshed every 30s. Older backends without /api/prices/all fall
+  // back to the provider-supported list, then to the four-coin feed.
+  const market = useAllCoins();
+  const supported = useSupportedCoins(market.isError);
+  const basic = useCryptoPrices(market.isError && supported.isError);
 
-  const coins: CoinPrice[] | null = all.data
-    ? all.data.coins.map((c) => ({ symbol: c.symbol, name: c.name, priceUsd: c.priceUsd, change1h: c.change1h, change24h: c.change24h, lastUpdated: null }))
-    : basic.data?.prices ?? null;
-  const stale = all.data ? all.data.stale : basic.data?.stale ?? false;
-  const pending = all.isPending || (all.isError && basic.isPending);
+  const toChip = (c: { id?: number | string; symbol: string; name: string; priceUsd: number; change1h: number | null; change24h: number | null }): CoinPrice => ({
+    id: c.id,
+    symbol: c.symbol,
+    name: c.name,
+    priceUsd: c.priceUsd,
+    change1h: c.change1h,
+    change24h: c.change24h,
+    lastUpdated: null,
+  });
+  const marketCoins = market.data?.pages[0]?.coins;
+  const baseCoins: CoinPrice[] | null = marketCoins
+    ? marketCoins.slice(0, TICKER_COINS).map(toChip)
+    : supported.data
+      ? supported.data.coins.map(toChip)
+      : basic.data?.prices ?? null;
+  // Real-time prices from the exchange stream, laid over the CoinMarketCap rows.
+  const coins = useLiveCoins(baseCoins);
+  const liveConnected = useLiveConnected();
+  const stale = marketCoins ? false : supported.data ? supported.data.stale : basic.data?.stale ?? false;
+  const updatedAt = market.data?.pages[0]?.fetchedAt;
+  const pending = market.isPending || (market.isError && supported.isPending) || (market.isError && supported.isError && basic.isPending);
 
   if (!coins && !pending) return null;
 
@@ -76,17 +101,17 @@ export function PriceTicker() {
       <View style={styles.rowWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} style={{ flex: 1 }}>
           {coins.map((coin) => (
-            <PriceChip key={coin.symbol} coin={coin} />
+            <PriceChip key={coin.symbol} coin={coin} onPress={() => onSelectCoin(toDetail(coin, marketCoins ?? supported.data?.coins))} />
           ))}
         </ScrollView>
-        <Pressable onPress={() => router.push('/coins' as Href)} accessibilityRole="button" accessibilityLabel="See all coin prices" style={styles.allButton}>
+        <Pressable onPress={() => router.navigate('/crypto' as Href)} accessibilityRole="button" accessibilityLabel="See all coin prices" style={styles.allButton}>
           <Text style={styles.allText}>All</Text>
           <Text style={styles.allChevron}>›</Text>
         </Pressable>
       </View>
       <View style={styles.footer}>
         <View style={[styles.dot, { backgroundColor: stale ? Colors.amber : Colors.sage }]} />
-        <Text style={styles.footerText}>{stale ? 'Delayed' : 'Live'} · via CoinMarketCap</Text>
+        <Text style={styles.footerText}>{stale ? 'Delayed' : liveConnected ? 'Live · real-time' : 'Live'}{updatedAt ? ` · updated ${new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</Text>
       </View>
     </View>
   );
@@ -114,9 +139,9 @@ const styles = StyleSheet.create({
     borderRadius: Radii.xl,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    minWidth: 118,
+    minWidth: 132,
   },
-  chipTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md },
+  chipTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   symbol: { fontFamily: Fonts.mono, fontSize: 12, color: Colors.tx1 },
   change: { ...Type.small, fontSize: 11 },
   price: { ...Type.h3, fontFamily: Fonts.sansBold, marginTop: 2 },

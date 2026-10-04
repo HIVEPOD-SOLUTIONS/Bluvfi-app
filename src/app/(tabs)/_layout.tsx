@@ -24,6 +24,14 @@ function ChatIcon({ color }: { color: string }) {
     </Svg>
   );
 }
+function CryptoIcon({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Circle cx={10} cy={10} r={7.5} stroke={color} strokeWidth={1.5} />
+      <Path d="M8 6v8M12 6v8M7 8h5a1.5 1.5 0 010 3H7m0 0h5.5a1.5 1.5 0 010 3H7" stroke={color} strokeWidth={1.3} strokeLinecap="round" />
+    </Svg>
+  );
+}
 function ProfileIcon({ color }: { color: string }) {
   return (
     <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
@@ -57,6 +65,7 @@ function TabsWithChat() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <HomeIcon color={String(color)} /> }} />
+      <Tabs.Screen name="crypto" options={{ title: 'Crypto', tabBarIcon: ({ color }) => <CryptoIcon color={String(color)} /> }} />
       <Tabs.Screen
         name="chat"
         options={{ title: 'AI Chat', tabBarIcon: ({ color }) => <ChatIcon color={String(color)} /> }}

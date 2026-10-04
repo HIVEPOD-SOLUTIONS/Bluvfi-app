@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
+import { CoinLogo } from '@/components/crypto/CoinLogo';
+import { CoinSheet } from '@/components/crypto/CoinSheet';
+import { useChatSheet } from '@/lib/chat-context';
+import { useLiveConnected, useLiveCoins, usePriceFlash } from '@/hooks/use-live-prices';
 import { useAllCoins, useCoinLookup, useCryptoPrices, useSupportedCoins, type SupportedCoin } from '@/hooks/use-crypto-prices';
 
 /** $64,231.55 for normal prices; more decimals below $1 so a cheap coin still shows movement. */
@@ -30,14 +32,13 @@ function Change({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-function CoinRow({ coin }: { coin: SupportedCoin }) {
+const CoinRow = memo(function CoinRow({ coin, onPress }: { coin: SupportedCoin; onPress: (coin: SupportedCoin) => void }) {
   const cap = formatCap(coin.marketCap);
+  const flash = usePriceFlash(coin.priceUsd);
   return (
-    <View style={styles.row}>
+    <Pressable onPress={() => onPress(coin)} style={styles.row} accessibilityRole="button" accessibilityLabel={`${coin.name} details`}>
       <View style={styles.rowTop}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{coin.symbol.slice(0, 4)}</Text>
-        </View>
+        <CoinLogo id={coin.id} symbol={coin.symbol} size={40} />
         <View style={{ flex: 1 }}>
           <Text style={styles.symbol}>{coin.symbol}</Text>
           <Text style={styles.name} numberOfLines={1}>
@@ -46,7 +47,7 @@ function CoinRow({ coin }: { coin: SupportedCoin }) {
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.price}>{formatPrice(coin.priceUsd)}</Text>
+          <Text style={[styles.price, flash ? { color: flash === 'up' ? Colors.sage : Colors.redAlert } : null]}>{formatPrice(coin.priceUsd)}</Text>
           <Change label="24h" value={coin.change24h} />
         </View>
       </View>
@@ -64,19 +65,20 @@ function CoinRow({ coin }: { coin: SupportedCoin }) {
           ))}
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
-}
+});
 
 /** Every coin CoinMarketCap lists, one per row in market-cap order, loaded a page at a time as you scroll. */
-export default function CoinsScreen() {
-  const router = useRouter();
+export default function CryptoTab() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [selectedCoin, setSelectedCoin] = useState<SupportedCoin | null>(null);
+  const { openChat } = useChatSheet();
   const all = useAllCoins();
   // Older backend without /api/prices/all: fall back to the provider-supported list, then the four-coin feed.
-  const supported = useSupportedCoins();
+  const supported = useSupportedCoins(all.isError);
   const basic = useCryptoPrices(all.isError && supported.isError);
   const lookup = useCoinLookup(debounced);
 
@@ -94,15 +96,17 @@ export default function CoinsScreen() {
   }, [all.data, all.isError, supported.data, supported.isError, basic.data]);
 
   const q = query.trim().toLowerCase();
+  const liveCoins = useLiveCoins(coins);
+  const liveConnected = useLiveConnected();
   const shown = useMemo(() => {
-    const base = (coins ?? []).filter(
+    const base = (liveCoins ?? []).filter(
       (c) => !q || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.providers.some((p) => p.toLowerCase().includes(q)),
     );
     // A ticker typed in full that isn't in the pages loaded yet (e.g. rank 3,000): add the direct lookup.
     const extra = (q && lookup.data?.coins) || [];
     const have = new Set(base.map((c) => String(c.id ?? c.symbol)));
     return [...base, ...extra.filter((c) => !have.has(String(c.id ?? c.symbol)))];
-  }, [coins, q, lookup.data]);
+  }, [liveCoins, q, lookup.data]);
 
   const loading = all.isPending || (all.isError && supported.isPending) || (all.isError && supported.isError && basic.isPending);
   const stale = all.isError ? (supported.data?.stale ?? basic.data?.stale ?? false) : false;
@@ -111,14 +115,9 @@ export default function CoinsScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + Spacing.sm }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
-          <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
-            <Path d="M10 3L5 8l5 5" stroke={Colors.tx0} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Coin prices</Text>
-          <Text style={styles.name}>{paged ? 'Every coin on CoinMarketCap, by market cap' : 'Coins supported across providers'}</Text>
+          <Text style={styles.title}>Crypto</Text>
+          <Text style={styles.name}>{paged ? 'Every coin on the market, live' : 'Coins supported across providers'}</Text>
         </View>
       </View>
 
@@ -140,7 +139,7 @@ export default function CoinsScreen() {
         <FlatList
           data={shown}
           keyExtractor={(c) => String(c.id ?? c.symbol)}
-          renderItem={({ item }) => <CoinRow coin={item} />}
+          renderItem={({ item }) => <CoinRow coin={item} onPress={setSelectedCoin} />}
           ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
           ListEmptyComponent={
             lookup.isFetching ? (
@@ -159,17 +158,18 @@ export default function CoinsScreen() {
             ) : (
               <View style={styles.footer}>
                 <View style={[styles.dot, { backgroundColor: stale ? Colors.amber : Colors.sage }]} />
-                <Text style={styles.name}>{stale ? 'Delayed' : 'Live'} · via CoinMarketCap</Text>
+                <Text style={styles.name}>{stale ? 'Delayed' : liveConnected ? 'Live · real-time' : 'Live'}</Text>
               </View>
             )
           }
-          contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxl }}
+          contentContainerStyle={{ paddingBottom: Spacing.xxl }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={12}
           windowSize={9}
         />
       )}
+      <CoinSheet coin={selectedCoin} onClose={() => setSelectedCoin(null)} onAsk={openChat} />
     </View>
   );
 }
@@ -177,7 +177,6 @@ export default function CoinsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.bg0, paddingHorizontal: Spacing.lg, gap: Spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  back: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg1, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   title: { ...Type.h1, color: Colors.tx0 },
   name: { ...Type.small, color: Colors.tx1 },
   search: {
@@ -199,8 +198,6 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  badge: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.bg2, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontFamily: Fonts.monoBold, fontSize: 11, color: Colors.tx0 },
   symbol: { ...Type.h3, color: Colors.tx0 },
   price: { ...Type.h3, fontFamily: Fonts.sansBold, color: Colors.tx0 },
   change: { ...Type.small, fontSize: 11 },
