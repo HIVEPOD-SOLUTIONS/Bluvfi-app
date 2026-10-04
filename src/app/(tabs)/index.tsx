@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { HistorySection } from '@/components/dashboard/HistorySection';
 import { PaywallSheet } from '@/components/paywall/PaywallSheet';
 import { StockSheet } from '@/components/invest/StockSheet';
 import { StockWithdrawSheet } from '@/components/invest/StockWithdrawSheet';
@@ -10,8 +11,6 @@ import { BackpackSheet } from '@/components/invest/InvestSheets';
 import { NosanaSheet } from '@/components/invest/NosanaSheet';
 import { GetEquitySheet } from '@/components/invest/GetEquitySheet';
 import { DomaSheet } from '@/components/invest/DomaSheet';
-import { OnrampSheet } from '@/components/banking/OnrampSheet';
-import { OfframpSheet } from '@/components/banking/OfframpSheet';
 import { Avatar, usePremium } from '@/components/profile/ProfileContent';
 import { ProfileDrawer } from '@/components/profile/ProfileDrawer';
 import { FundWalletSheet } from '@/components/dashboard/FundWalletSheet';
@@ -23,7 +22,6 @@ import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
 import {
   BankingSection,
   BillsSection,
-  HistorySection,
 } from '@/components/dashboard/DashboardSections';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
@@ -84,8 +82,6 @@ export default function HomeScreen() {
   const [selectedCoin, setSelectedCoin] = useState<SupportedCoin | null>(null);
   const [backpackKind, setBackpackKind] = useState<'stock' | 'etf' | null>(null);
   const [provider, setProvider] = useState<ProviderId | null>(null);
-  const [onrampOpen, setOnrampOpen] = useState(false);
-  const [offrampOpen, setOfframpOpen] = useState(false);
 
   // Same source as the web dashboard: completed bill payments in the payments table, which includes
   // purchases the AI made on the user's behalf.
@@ -245,9 +241,9 @@ export default function HomeScreen() {
             />
           )}
           {tab === 'banking' && (
-            <BankingSection onAddFunds={() => setOnrampOpen(true)} onWithdraw={() => setOfframpOpen(true)} />
+            <BankingSection />
           )}
-          {tab === 'history' && <HistorySection />}
+          {tab === 'history' && <HistorySection onAsk={openChat} />}
         </View>
       </ScrollView>
 
@@ -309,8 +305,6 @@ export default function HomeScreen() {
         onClose={() => setSelectedStock(null)}
       />
       <StockWithdrawSheet open={withdrawOpen} cashUsd={stocksPortfolio?.cashUsd ?? 0} onClose={() => setWithdrawOpen(false)} />
-      <OnrampSheet open={onrampOpen} onClose={() => setOnrampOpen(false)} />
-      <OfframpSheet open={offrampOpen} onClose={() => setOfframpOpen(false)} />
       <PurchasesSheet
         open={purchasesOpen}
         onClose={() => setPurchasesOpen(false)}

@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Badge, BadgeVariant } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
-import { useApiQuery } from '@/hooks/use-api';
 import type { Payment } from '@/lib/api-types';
 import { PurchaseRow } from './PurchaseRow';
 
@@ -15,12 +13,6 @@ const BITREFILL_LOGO =
  * FlatList) because Home scrolls them inside its own ScrollView; any bottom sheets they open are
  * owned by Home and triggered through the callbacks here.
  */
-
-function statusToBadge(status: string): BadgeVariant {
-  if (status === 'completed' || status === 'paid') return 'live';
-  if (status === 'failed') return 'failed';
-  return 'pending';
-}
 
 function EmptyState({ text }: { text: string }) {
   return (
@@ -111,40 +103,28 @@ export function BillsSection({ purchasedCount, loading, purchases, onViewAll, on
   );
 }
 
-export function BankingSection({ onAddFunds, onWithdraw }: { onAddFunds: () => void; onWithdraw: () => void }) {
+export function BankingSection() {
   return (
-    <View style={styles.list}>
-      <Text style={styles.emptyText}>Onramp and offramp (India/UPI) are live. Other banking rails are coming soon.</Text>
-      <Button onPress={onAddFunds}>Add funds</Button>
-      <Button variant="outline" onPress={onWithdraw}>
-        Withdraw to bank
-      </Button>
-    </View>
-  );
-}
-
-export function HistorySection() {
-  const { data, isLoading } = useApiQuery<{ payments: Payment[] }>(['payments'], '/api/payments', { limit: 50 });
-  if (isLoading) return <EmptyState text="Loading history…" />;
-  if (!data?.payments.length) return <EmptyState text="No activity yet." />;
-
-  return (
-    <View style={styles.list}>
-      {data.payments.map((item) => (
-        <View key={item.id} style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>{item.description ?? item.type}</Text>
-            <Text style={styles.rowSub}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-          </View>
-          {Number(item.amountUsdc) > 0 && <Text style={styles.rowAmount}>${Number(item.amountUsdc).toFixed(2)}</Text>}
-          <Badge variant={statusToBadge(item.status)} />
-        </View>
-      ))}
+    <View style={styles.soon}>
+      <Text style={styles.soonIcon}>🏦</Text>
+      <Text style={styles.soonTitle}>Banking is coming soon</Text>
+      <Text style={styles.emptyText}>Add funds and withdraw to your bank, right from the app. We'll let you know when it's ready.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  soon: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.bg1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radii.xxl,
+    padding: Spacing.xxxl,
+  },
+  soonIcon: { fontSize: 40 },
+  soonTitle: { ...Type.h2, color: Colors.tx0 },
   list: {
     gap: Spacing.sm,
   },

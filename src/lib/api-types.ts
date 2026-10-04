@@ -44,5 +44,6 @@ export interface Payment {
   status: string;
   chain: string | null;
   txHash: string | null;
+  referenceId?: string | null;
   createdAt: string;
 }
