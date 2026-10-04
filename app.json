@@ -47,6 +47,12 @@
         {
           "androidAppId": "ca-app-pub-4986320440788963~9278420291"
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Bluvfi uses the microphone so you can talk to the assistant."
+        }
       ]
     ],
     "experiments": {

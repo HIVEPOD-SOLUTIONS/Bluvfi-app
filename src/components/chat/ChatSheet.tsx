@@ -18,6 +18,9 @@ import Svg, { Path } from 'react-native-svg';
 import { Logo } from '@/components/ui/Logo';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { showRewardedAd } from '@/lib/admob';
+import { usePremium } from '@/components/profile/ProfileContent';
+import { useVoiceInput } from '@/hooks/use-voice-input';
+import { MicButton, VoiceBar } from './VoiceBar';
 import { API_BASE_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
@@ -58,8 +61,16 @@ function SendIcon() {
  */
 export function ChatSheet() {
   const insets = useSafeAreaInsets();
-  const { firstName, getAccessToken } = useAuth();
-  const { open, closeChat, messages, status, isBusy, send, dailyLimitHit, clearDailyLimit, openWallet } = useChatSheet();
+  const { firstName, getAccessToken, userId } = useAuth();
+  const { open, closeChat, messages, status, isBusy, send, dailyLimitHit, clearDailyLimit, limitNotice, remainingToday, openWallet } = useChatSheet();
+  const { isPremium } = usePremium();
+  // Voice input: the transcript is sent to the chat as if it had been typed.
+  const voice = useVoiceInput(send);
+  const cancelVoice = voice.cancel;
+  // Closing the sheet mid-recording drops the recording rather than leaving the mic open.
+  useEffect(() => {
+    if (!open) void cancelVoice();
+  }, [open, cancelVoice]);
   const [adBusy, setAdBusy] = useState(false);
   const [adNote, setAdNote] = useState<string | null>(null);
 
@@ -136,24 +147,48 @@ export function ChatSheet() {
     following.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 80;
   };
 
+  // Claim the bonus for a finished ad. With server-side verification on, the server answers 202 until Google's own
+  // callback has confirmed the ad (usually a few seconds), so poll for it; otherwise it grants straight away.
+  const claimBonus = async (amount: number) => {
+    const token = await getAccessToken();
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const res = await fetch(`${API_BASE_URL}/api/chat/bonus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ amount }),
+      });
+      if (res.status === 202) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      if (res.ok) {
+        clearDailyLimit();
+        return;
+      }
+      // e.g. today's ad bonuses are used up: say so, and keep the limit card up.
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setAdNote(data.error ?? "Couldn't unlock your messages. Please try again.");
+      return;
+    }
+    setAdNote("We're still confirming your ad. Tap again in a moment, and your messages will unlock.");
+  };
+
   // Daily limit hit: a rewarded ad unlocks more messages, as in the Capacitor app.
   const watchAd = async () => {
     setAdBusy(true);
     setAdNote(null);
-    const result = await showRewardedAd(async (amount) => {
+    let earned = 0;
+    const result = await showRewardedAd((amount) => {
+      earned = amount;
+    }, userId ? { userId } : undefined);
+    if (result === 'unavailable') setAdNote('No ad is available right now. Please try again in a moment.');
+    else if (result === 'rewarded' || earned > 0) {
       try {
-        const token = await getAccessToken();
-        await fetch(`${API_BASE_URL}/api/chat/bonus`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ amount }),
-        });
-        clearDailyLimit();
+        await claimBonus(earned || 5);
       } catch {
         setAdNote("Couldn't unlock your messages. Please try again.");
       }
-    });
-    if (result === 'unavailable') setAdNote('No ad is available right now. Please try again in a moment.');
+    }
     setAdBusy(false);
   };
 
@@ -173,7 +208,7 @@ export function ChatSheet() {
   );
   const lastMessage = messages[messages.length - 1];
   const showRetryNote =
-    !dailyLimitHit && !isBusy && messages.length > 0 && lastMessage?.role === 'user' && status !== 'submitted';
+    !dailyLimitHit && !limitNotice && !isBusy && messages.length > 0 && lastMessage?.role === 'user' && status !== 'submitted';
 
   return (
     <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={closeChat}>
@@ -287,39 +322,77 @@ export function ChatSheet() {
 
           {dailyLimitHit && (
             <View style={styles.limitCard}>
-              <Text style={styles.limitTitle}>📺 Daily limit reached</Text>
-              <Text style={styles.limitSub}>Watch a short ad to unlock 5 more messages. Your quota also resets at midnight UTC.</Text>
+              <Text style={styles.limitTitle}>{isPremium ? 'Daily limit reached' : '📺 Daily limit reached'}</Text>
+              <Text style={styles.limitSub}>
+                {isPremium
+                  ? "You've used all of today's messages. Your allowance renews 24 hours after your first message of the day."
+                  : 'Watch a short ad to unlock more messages. Your allowance also renews 24 hours after your first message of the day.'}
+              </Text>
               {adNote ? <Text style={styles.limitError}>{adNote}</Text> : null}
-              <Pressable onPress={watchAd} disabled={adBusy} style={[styles.limitButton, adBusy && { opacity: 0.5 }]}>
-                <Text style={styles.limitButtonText}>{adBusy ? 'Loading ad…' : 'Watch Ad — Get 5 Messages'}</Text>
-              </Pressable>
+              {!isPremium && (
+                <Pressable onPress={watchAd} disabled={adBusy} style={[styles.limitButton, adBusy && { opacity: 0.5 }]}>
+                  <Text style={styles.limitButtonText}>{adBusy ? 'Loading ad…' : 'Watch Ad — Get More Messages'}</Text>
+                </Pressable>
+              )}
             </View>
           )}
+          {limitNotice && !dailyLimitHit && <MessageBubble role="assistant" text={limitNotice} />}
           {showRetryNote && <MessageBubble role="assistant" text="Something went wrong — please try again." />}
         </ScrollView>
 
+        {voice.error ? (
+          <Pressable onPress={voice.permissionDenied ? voice.openSettings : voice.clearError}>
+            <Text style={[styles.quotaHint, { color: Colors.redAlert }]}>
+              {voice.error}
+              {voice.permissionDenied ? ' Tap to open Settings.' : ''}
+            </Text>
+          </Pressable>
+        ) : null}
+        {remainingToday !== null && remainingToday <= 20 && !dailyLimitHit && (
+          <Text style={styles.quotaHint}>
+            {remainingToday === 0 ? 'Last message for today' : `${remainingToday} message${remainingToday === 1 ? '' : 's'} left today`}
+          </Text>
+        )}
         <View style={[styles.inputRow, { paddingBottom: keyboardHeight > 0 ? Spacing.md : insets.bottom + Spacing.md }]}>
-          <TextInput
-            style={styles.input}
-            placeholder="Ask Bluvfi anything…"
-            placeholderTextColor={Colors.tx2}
-            value={input}
-            onChangeText={setInput}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            blurOnSubmit={false}
-            editable={!dailyLimitHit}
-          />
-          {input.trim().length > 0 && (
-            <Pressable
-              onPress={handleSend}
-              disabled={isBusy}
-              style={[styles.sendButton, isBusy && { opacity: 0.5 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Send"
-            >
-              <SendIcon />
-            </Pressable>
+          {voice.state !== 'idle' ? (
+            <View style={{ flex: 1 }}>
+              <VoiceBar
+                state={voice.state}
+                level={voice.level}
+                onCancel={voice.cancel}
+                onSend={() => {
+                  following.current = true;
+                  void voice.finish();
+                }}
+              />
+            </View>
+          ) : (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="Ask Bluvfi anything…"
+                placeholderTextColor={Colors.tx2}
+                value={input}
+                onChangeText={setInput}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
+                blurOnSubmit={false}
+                editable={!dailyLimitHit}
+              />
+              {input.trim().length > 0 ? (
+                <Pressable
+                  onPress={handleSend}
+                  disabled={isBusy}
+                  style={[styles.sendButton, isBusy && { opacity: 0.5 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send"
+                >
+                  <SendIcon />
+                </Pressable>
+              ) : (
+                voice.available && <MicButton onPress={voice.start} disabled={dailyLimitHit || isBusy} />
+              )}
+            </>
           )}
         </View>
       </Animated.View>
@@ -378,6 +451,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     gap: Spacing.sm,
   },
+  quotaHint: { ...Type.small, color: Colors.tx1, textAlign: 'center', paddingTop: Spacing.sm },
   limitCard: {
     backgroundColor: Colors.bg1,
     borderWidth: 1,

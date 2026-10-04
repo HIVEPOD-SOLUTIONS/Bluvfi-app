@@ -27,6 +27,19 @@ export function initAds(): Promise<boolean> {
         return true;
       } catch (err) {
         console.warn('[AdMob] init/consent error:', err);
+        // The consent form failed to load (e.g. no message is set up in the AdMob console yet). Ads may still be
+        // served when Google's own consent state already allows them (outside regions that require consent);
+        // when it doesn't, stay off rather than serve ads without consent.
+        try {
+          const { default: mobileAds, AdsConsent } = require('react-native-google-mobile-ads') as typeof import('react-native-google-mobile-ads');
+          const info = await AdsConsent.getConsentInfo();
+          if (info.canRequestAds) {
+            await mobileAds().initialize();
+            return true;
+          }
+        } catch {
+          /* no usable consent state */
+        }
         return false;
       }
     })();
@@ -38,12 +51,19 @@ export function initAds(): Promise<boolean> {
  * Loads and shows a rewarded ad. `onRewarded` gets the reward amount (set in the AdMob console) as soon
  * as the user earns it, before they close the ad.
  */
-export async function showRewardedAd(onRewarded: (amount: number) => void): Promise<RewardedResult> {
+export async function showRewardedAd(
+  onRewarded: (amount: number) => void,
+  /** The user the ad is for. Passed to AdMob so its signed server callback names them (server-side verification). */
+  ssv?: { userId: string },
+): Promise<RewardedResult> {
   if (!(await initAds())) return 'unavailable';
 
   try {
     const { RewardedAd, RewardedAdEventType, AdEventType } = require('react-native-google-mobile-ads') as typeof import('react-native-google-mobile-ads');
-    const ad = RewardedAd.createForAdRequest(REWARDED_AD_ID);
+    const ad = RewardedAd.createForAdRequest(
+      REWARDED_AD_ID,
+      ssv ? { serverSideVerificationOptions: { userId: ssv.userId, customData: 'chat-bonus' } } : undefined,
+    );
 
     return await new Promise<RewardedResult>((resolve) => {
       let rewarded = false;

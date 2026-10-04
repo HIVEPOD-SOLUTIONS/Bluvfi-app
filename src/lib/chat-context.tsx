@@ -32,6 +32,10 @@ interface ChatContextValue {
   dailyLimitHit: boolean;
   /** Lift the daily-limit notice (after a rewarded ad grants more messages). */
   clearDailyLimit: () => void;
+  /** Any other limit the server enforced (too many messages a minute, daily AI capacity…), in its own words. */
+  limitNotice: string | null;
+  /** Messages left today, from the server's quota headers (null until the first reply). */
+  remainingToday: number | null;
   /** The Wallet (fund) sheet on the dashboard — also opened by the assistant's open_fund_wallet tool. */
   walletOpen: boolean;
   openWallet: () => void;
@@ -66,6 +70,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [dailyLimitHit, setDailyLimitHit] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
+  const [remainingToday, setRemainingToday] = useState<number | null>(null);
 
   // The transport is created once; it reads the freshest values through this ref on every request.
   const bodyRef = useRef<Record<string, unknown>>({});
@@ -102,14 +108,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // incremental text needs. A 429 mentioning "daily" is the message quota, handled in the UI.
         fetch: (async (url: string, init?: RequestInit) => {
           const res = await (expoFetch as unknown as typeof globalThis.fetch)(url, init);
+          // The server reports the quota on every reply, so the chat can warn before the limit is hit.
+          const remaining = res.headers.get('X-RateLimit-Remaining-Daily');
+          if (remaining !== null && Number.isFinite(Number(remaining))) setRemainingToday(Number(remaining));
+          if (res.ok) setLimitNotice(null);
           if (res.status === 429) {
             res
               .clone()
               .json()
               .then((data: { error?: string }) => {
-                if ((data?.error ?? '').includes('daily')) setDailyLimitHit(true);
+                const message = data?.error ?? '';
+                // The message quota has the ad-for-more-messages card; every other limit is shown as the server worded it.
+                if (message.includes('daily message limit')) setDailyLimitHit(true);
+                else setLimitNotice(message || 'Too many requests. Please wait a moment and try again.');
               })
-              .catch(() => {});
+              .catch(() => setLimitNotice('Too many requests. Please wait a moment and try again.'));
           }
           return res;
         }) as unknown as typeof globalThis.fetch,
@@ -156,12 +169,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       send,
       reportToolResult,
       dailyLimitHit,
-      clearDailyLimit: () => setDailyLimitHit(false),
+      clearDailyLimit: () => {
+        setDailyLimitHit(false);
+        setRemainingToday(null);
+      },
+      limitNotice,
+      remainingToday,
       walletOpen,
       openWallet: () => setWalletOpen(true),
       closeWallet: () => setWalletOpen(false),
     }),
-    [open, openChat, messages, status, isBusy, send, reportToolResult, dailyLimitHit, walletOpen],
+    [open, openChat, messages, status, isBusy, send, reportToolResult, dailyLimitHit, limitNotice, remainingToday, walletOpen],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

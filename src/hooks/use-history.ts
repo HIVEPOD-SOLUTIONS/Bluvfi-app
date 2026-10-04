@@ -169,7 +169,8 @@ export function useWeeklyInsight() {
     insight: query.data?.insight ?? null,
     isLoading: query.isLoading,
     isGenerating: generate.isPending,
-    error: generate.isError ? 'Could not generate your insight right now.' : null,
+    // A 429 carries the server's own wording ("daily insights limit… resets in about 5 hours"); anything else is generic.
+    error: generate.isError ? (generate.error instanceof Error && generate.error.message ? generate.error.message : 'Could not generate your insight right now.') : null,
     generate: () => generate.mutate(),
   };
 }

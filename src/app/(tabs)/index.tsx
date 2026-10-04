@@ -16,6 +16,8 @@ import { ProfileDrawer } from '@/components/profile/ProfileDrawer';
 import { FundWalletSheet } from '@/components/dashboard/FundWalletSheet';
 import { PriceTicker } from '@/components/dashboard/PriceTicker';
 import { CoinSheet } from '@/components/crypto/CoinSheet';
+import { MicButton, VoiceBar } from '@/components/chat/VoiceBar';
+import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
 import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
@@ -110,6 +112,9 @@ export default function HomeScreen() {
     !xrp.isLoading &&
     totalBalance < LOW_BALANCE_THRESHOLD_USD &&
     (xrp.balance ?? 0) < LOW_XRP_THRESHOLD;
+
+  // Voice: what you say is transcribed and sent to the assistant, which opens with it (like typing in the ask bar).
+  const voice = useVoiceInput(openChat);
 
   const submitAsk = () => {
     const text = askText.trim();
@@ -249,19 +254,32 @@ export default function HomeScreen() {
 
       {/* Ask bar: type here and the AI chat sheet opens with your question, like the web dashboard. */}
       <View style={styles.askBar}>
-        <TextInput
-          style={styles.askInput}
-          placeholder="Ask Bluvfi anything…"
-          placeholderTextColor={Colors.tx2}
-          value={askText}
-          onChangeText={setAskText}
-          onSubmitEditing={submitAsk}
-          returnKeyType="send"
-        />
-        {askText.trim().length > 0 && (
-          <Pressable onPress={submitAsk} style={styles.askSend} accessibilityRole="button" accessibilityLabel="Send">
-            <Text style={styles.askSendText}>↑</Text>
-          </Pressable>
+        {voice.state !== 'idle' ? (
+          <View style={{ flex: 1 }}>
+            <VoiceBar state={voice.state} level={voice.level} onCancel={voice.cancel} onSend={() => void voice.finish()} />
+          </View>
+        ) : (
+          <>
+            <TextInput
+              style={styles.askInput}
+              placeholder={voice.error ?? 'Ask Bluvfi anything…'}
+              placeholderTextColor={voice.error ? Colors.redAlert : Colors.tx2}
+              value={askText}
+              onChangeText={(t) => {
+                setAskText(t);
+                if (voice.error) voice.clearError();
+              }}
+              onSubmitEditing={submitAsk}
+              returnKeyType="send"
+            />
+            {askText.trim().length > 0 ? (
+              <Pressable onPress={submitAsk} style={styles.askSend} accessibilityRole="button" accessibilityLabel="Send">
+                <Text style={styles.askSendText}>↑</Text>
+              </Pressable>
+            ) : (
+              voice.available && <MicButton onPress={voice.permissionDenied ? voice.openSettings : voice.start} />
+            )}
+          </>
         )}
       </View>
 
