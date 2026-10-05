@@ -17,6 +17,8 @@ import { FundWalletSheet } from '@/components/dashboard/FundWalletSheet';
 import { PriceTicker } from '@/components/dashboard/PriceTicker';
 import { CoinSheet } from '@/components/crypto/CoinSheet';
 import { MicButton, VoiceBar } from '@/components/chat/VoiceBar';
+import { RecoveryCard } from '@/components/wallet/RecoveryCard';
+import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
@@ -67,6 +69,8 @@ function ChatIcon() {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { email, firstName, evmAddress, solanaAddress } = useAuth();
+  // A wallet-only account has no email; the avatar then shows the wallet's initial.
+  const { wallet: signInWallet } = useConnectedWallet();
   const { isPremium, setIsPremium } = usePremium();
   const { data: balances, isLoading: balancesLoading } = useBalances(evmAddress, solanaAddress);
   const xrpl = useXrplWallet();
@@ -136,7 +140,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open profile menu"
           >
-            <Avatar email={email} size={36} />
+            <Avatar email={email ?? signInWallet?.name} size={36} />
           </Pressable>
 
           <View style={styles.brand}>
@@ -147,6 +151,8 @@ export default function HomeScreen() {
             <ChatIcon />
           </Pressable>
         </View>
+
+        <RecoveryCard compact onOpenProfile={() => setDrawerOpen(true)} />
 
         {balanceIsLow && (
           <View style={styles.banner}>

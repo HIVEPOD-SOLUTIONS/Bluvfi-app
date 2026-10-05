@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
+import { PayFromPicker } from '@/components/wallet/PayFromPicker';
+import { useSolanaPaySource } from '@/lib/wallet-connection';
 import { EVM_NETWORK_LABEL, friendlyBitrefillError, isManualMethod, payBitrefillInvoice } from '@/lib/payments/bitrefill';
 
 export interface BitrefillPendingPayment {
@@ -27,6 +29,8 @@ type State = 'idle' | 'paying' | 'done' | 'error' | 'manual';
 export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: string; output: BitrefillPendingPayment }) {
   const { getEvmWallet, getSolanaProvider, solanaAddress } = useAuth();
   const { reportToolResult } = useChatSheet();
+  // Solana invoices can be paid from Bluvfi's wallet or the wallet the user connected (their choice, shown below).
+  const solanaPay = useSolanaPaySource({ address: solanaAddress, getProvider: getSolanaProvider });
   const [state, setState] = useState<State>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -77,8 +81,8 @@ export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: strin
         paymentAddress: output.paymentAddress,
         paymentAmount: output.paymentAmount,
         wallet: getEvmWallet,
-        getSolanaProvider,
-        solanaAddress,
+        getSolanaProvider: solanaPay.getProvider,
+        solanaAddress: solanaPay.address,
       });
       setState('done');
       report({
@@ -173,6 +177,7 @@ export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: strin
           {output.paymentAmount} {currency}
         </Text>
       </View>
+      {pm.includes('solana') ? <PayFromPicker needed={Number(output.paymentAmount)} /> : null}
       {errMsg ? <Text style={styles.error}>{errMsg}</Text> : null}
       <View style={styles.actions}>
         <View style={{ flex: 1 }}>

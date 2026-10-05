@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useConnectedWallet } from '@/lib/wallet-connection';
+import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { hasEntitlement } from '@/lib/revenuecat';
@@ -155,10 +156,10 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
     <View style={styles.root}>
       <View>
       <View style={styles.header}>
-        <Avatar email={email} size={52} />
+        <Avatar email={email ?? connectedWallet?.name} size={52} />
         <View style={styles.identity}>
           <Text style={styles.name} numberOfLines={1}>
-            {email?.split('@')[0] ?? 'Signed in'}
+            {email?.split('@')[0] ?? connectedWallet?.name ?? 'Signed in'}
           </Text>
           {email && (
             <Text style={styles.email} numberOfLines={1}>
@@ -167,6 +168,8 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
           )}
         </View>
       </View>
+
+      <RecoveryCard />
 
       <AddressRow label="EVM WALLET" address={evmAddress} />
       <AddressRow label="SOLANA WALLET" address={solanaAddress} />

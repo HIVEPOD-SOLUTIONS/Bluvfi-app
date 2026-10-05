@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Logo } from '@/components/ui/Logo';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
+import { WalletRiskModal } from '@/components/wallet/WalletRiskModal';
 import { useAuth } from '@/lib/auth-context';
+import { acceptWalletRisk, hasAcceptedWalletRisk } from '@/lib/wallet-risk';
 
 const RESEND_COOLDOWN_S = 30;
 
@@ -39,6 +41,17 @@ function GoogleIcon() {
   );
 }
 
+/** Solana's mark: three slanted bars. */
+function SolanaIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M5 16.5h14.2a.6.6 0 01.42 1.02l-2.7 2.7a.9.9 0 01-.63.26H2.1a.4.4 0 01-.28-.68l2.7-2.7A.9.9 0 015 16.5z" fill="#14F195" />
+      <Path d="M5 3.5a.9.9 0 01.63-.26H19.9a.4.4 0 01.28.68l-2.7 2.7a.9.9 0 01-.63.26H2.3a.6.6 0 01-.42-1.02l2.7-2.7z" fill="#9945FF" />
+      <Path d="M19.5 9.9l-2.7-2.7a.9.9 0 00-.63-.26H2.1a.4.4 0 00-.28.68l2.7 2.7a.9.9 0 00.63.26h14.2a.6.6 0 00.42-1.02l.06-.06z" fill="#00C2FF" />
+    </Svg>
+  );
+}
+
 /** Friendly message for users; the underlying error is always logged and, in dev builds, shown too. */
 function describeError(friendly: string, err: unknown): string {
   console.warn('[login]', friendly, err);
@@ -61,6 +74,8 @@ export default function LoginScreen() {
     loginWithPasskey,
     signupWithPasskey,
     passkeyState,
+    walletLoginAvailable,
+    loginWithSolanaWallet,
   } = useAuth();
 
   // AuthGate swaps (tabs) in when the user signs in, but that swap doesn't always move the visible
@@ -81,6 +96,46 @@ export default function LoginScreen() {
   const passkeyBusy = passkeyState.status === 'awaiting-passkey' || passkeyState.status === 'submitting-response';
 
   const googleBusy = googleState.status === 'loading';
+
+  // Sign in with a Solana wallet app (Android, Mobile Wallet Adapter). On a Seeker it leads, since Seed Vault is built in.
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [riskOpen, setRiskOpen] = useState(false);
+  const onSeeker = /seeker/i.test(String((Platform.constants as { Model?: string }).Model ?? ''));
+
+  const runWalletLogin = async () => {
+    setError(null);
+    setWalletBusy(true);
+    try {
+      await loginWithSolanaWallet();
+      // Success: auth state flips and the isAuthenticated effect above moves the user into the app.
+    } catch (err) {
+      const e = err as { name?: string; kind?: string; message?: string };
+      if (e?.kind === 'declined') return; // backing out of the wallet app is a choice, not a failure
+      // The adapter's own errors ("No compatible wallet found…") already say what to do.
+      setError(e?.name === 'WalletError' ? (e.message ?? null) : describeError("Couldn't sign in with your wallet. Try again or use email.", err));
+    } finally {
+      setWalletBusy(false);
+    }
+  };
+
+  const handleWallet = async () => {
+    // First wallet-only sign-in on this device: explain what it means for getting the account back.
+    if (await hasAcceptedWalletRisk()) await runWalletLogin();
+    else setRiskOpen(true);
+  };
+
+  const walletButton = walletLoginAvailable ? (
+    <Button
+      variant={onSeeker ? 'primary' : 'outline'}
+      onPress={handleWallet}
+      loading={walletBusy}
+      disabled={sending || passkeyBusy || googleBusy}
+      iconLeft={<SolanaIcon />}
+      fullWidth
+    >
+      {onSeeker ? 'Continue with Seed Vault' : 'Continue with Solana wallet'}
+    </Button>
+  ) : null;
 
   const handleGoogle = async () => {
     setError(null);
@@ -172,16 +227,18 @@ export default function LoginScreen() {
         <View style={styles.form}>
           {step === 'email' ? (
             <>
+              {onSeeker && walletButton}
               <Button
                 variant="outline"
                 onPress={handleGoogle}
                 loading={googleBusy}
-                disabled={sending || passkeyBusy}
+                disabled={sending || passkeyBusy || walletBusy}
                 iconLeft={<GoogleIcon />}
                 fullWidth
               >
                 Continue with Google
               </Button>
+              {!onSeeker && walletButton}
 
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
@@ -251,6 +308,16 @@ export default function LoginScreen() {
           {error && <Text style={styles.error}>{error}</Text>}
         </View>
       </View>
+
+      <WalletRiskModal
+        open={riskOpen}
+        onCancel={() => setRiskOpen(false)}
+        onContinue={async () => {
+          setRiskOpen(false);
+          await acceptWalletRisk();
+          await runWalletLogin();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

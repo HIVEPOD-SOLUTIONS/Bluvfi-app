@@ -10,12 +10,18 @@ import {
   useEmbeddedEthereumWallet,
   useEmbeddedSolanaWallet,
   useLoginWithOAuth,
+  useLoginWithSiws,
+  useLinkWithSiws,
+  useLinkEmail,
+  useLinkWithOAuth,
 } from '@privy-io/expo';
 import { useLoginWithPasskey, useSignupWithPasskey } from '@privy-io/expo/passkey';
 import { PrivyElements } from '@privy-io/expo/ui';
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
 import type { Chain } from 'viem';
 import { domaChain } from '@/lib/doma-chain';
+import { mwaAvailable, signInWithWallet } from '@/lib/mwa';
+import { clearConnectedWallet, saveConnectedWallet } from '@/lib/wallet-connection';
 
 /**
  * Relying-party domain for passkeys — matches bluvfi web's domain. Passkey
@@ -34,6 +40,13 @@ const PASSKEY_RELYING_PARTY = 'bluvfi.xyz';
  */
 const SUPPORTED_CHAINS: [Chain, ...Chain[]] = [base, polygon, arbitrum, optimism, mainnet, domaChain];
 
+/**
+ * "Sign in with Solana" identifies this app to Privy by its app id (the same id Privy's dashboard allows for this
+ * app) and its website. Overridable without a rebuild if Privy's dashboard expects different values.
+ */
+const SIWS_DOMAIN = process.env.EXPO_PUBLIC_SIWS_DOMAIN ?? 'com.bluvfi.xyz';
+const SIWS_URI = process.env.EXPO_PUBLIC_SIWS_URI ?? 'https://www.bluvfi.xyz';
+
 interface AuthContextType {
   isReady: boolean;
   isAuthenticated: boolean;
@@ -50,6 +63,20 @@ interface AuthContextType {
   loginWithPasskey: () => Promise<void>;
   signupWithPasskey: () => Promise<void>;
   passkeyState: ReturnType<typeof useLoginWithPasskey>['state'];
+  /** Sign in with a Solana wallet app (Seeker's Seed Vault, Phantom…) through Mobile Wallet Adapter. Android only. */
+  walletLoginAvailable: boolean;
+  loginWithSolanaWallet: () => Promise<void>;
+  /** Link the wallet app to the signed-in account, so it can be used to sign in next time. */
+  linkSolanaWallet: () => Promise<void>;
+  /** Addresses of Solana wallets already linked to this account for sign-in. */
+  linkedWalletAddresses: string[];
+  /** Signed in with a wallet and nothing else: no email or Google to recover the account with. */
+  isWalletOnly: boolean;
+  /** Add an email (code sent to it) / Google as a second way in. */
+  sendLinkEmailCode: (email: string) => Promise<void>;
+  linkEmailWithCode: (email: string, code: string) => Promise<void>;
+  linkEmailState: ReturnType<typeof useLinkEmail>['state'];
+  linkGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
   /** EIP-1193 provider of the user's embedded EVM wallet (signs silently; no external wallet needed). */
@@ -72,6 +99,10 @@ function AuthBridge({ children }: { children: ReactNode }) {
   const { login: sdkLoginWithOAuth, state: googleState } = useLoginWithOAuth();
   const { loginWithPasskey: sdkLoginWithPasskey, state: passkeyState } = useLoginWithPasskey();
   const { signupWithPasskey: sdkSignupWithPasskey } = useSignupWithPasskey();
+  const { generateMessage: siwsMessage, login: sdkLoginWithSiws } = useLoginWithSiws();
+  const { generateMessage: siwsLinkMessage, link: sdkLinkSiws } = useLinkWithSiws();
+  const { sendCode: sdkSendLinkCode, linkWithCode: sdkLinkWithCode, state: linkEmailState } = useLinkEmail();
+  const { link: sdkLinkOAuth } = useLinkWithOAuth();
   const ethereum = useEmbeddedEthereumWallet();
   const solana = useEmbeddedSolanaWallet();
 
@@ -123,6 +154,60 @@ function AuthBridge({ children }: { children: ReactNode }) {
     await sdkLoginWithOAuth({ provider: 'google', redirectUri: '/oauth-callback' });
   }, [sdkLoginWithOAuth]);
 
+  /**
+   * Sign in with a Solana wallet app: one trip to the wallet (authorise + sign the message Privy generated), then Privy
+   * logs the user in. The wallet is remembered as connected, and preferred for payments.
+   */
+  const loginWithSolanaWallet = useCallback(async () => {
+    const signIn = await signInWithWallet(async (address) => {
+      const { message } = await siwsMessage({ wallet: { address }, from: { domain: SIWS_DOMAIN, uri: SIWS_URI } });
+      return message;
+    });
+    // Saved first: logging in switches screens straight away, and the wallet must already be on disk when the
+    // connected-wallet state starts up. If Privy then refuses the login, it is forgotten again.
+    await saveConnectedWallet(signIn.wallet);
+    try {
+      await sdkLoginWithSiws({
+        signature: signIn.signature,
+        message: signIn.message,
+        wallet: { walletClientType: signIn.walletClientType, connectorType: 'mobile_wallet_protocol' },
+      });
+    } catch (err) {
+      await clearConnectedWallet();
+      throw err;
+    }
+  }, [siwsMessage, sdkLoginWithSiws]);
+
+  const linkSolanaWallet = useCallback(async () => {
+    const signIn = await signInWithWallet(async (address) => {
+      const { message } = await siwsLinkMessage({ wallet: { address }, from: { domain: SIWS_DOMAIN, uri: SIWS_URI } });
+      return message;
+    });
+    await sdkLinkSiws({
+      signature: signIn.signature,
+      message: signIn.message,
+      wallet: { walletClientType: signIn.walletClientType, connectorType: 'mobile_wallet_protocol' },
+    });
+  }, [siwsLinkMessage, sdkLinkSiws]);
+
+  const sendLinkEmailCode = useCallback(async (email: string) => {
+    await sdkSendLinkCode({ email });
+  }, [sdkSendLinkCode]);
+
+  const linkEmailWithCode = useCallback(async (email: string, code: string) => {
+    await sdkLinkWithCode({ email, code });
+  }, [sdkLinkWithCode]);
+
+  const linkGoogle = useCallback(async () => {
+    await sdkLinkOAuth({ provider: 'google', redirectUri: '/oauth-callback' });
+  }, [sdkLinkOAuth]);
+
+  // Logging out also forgets the connected wallet, so the next person to sign in on this phone doesn't inherit it.
+  const logoutAndForget = useCallback(async () => {
+    await clearConnectedWallet();
+    await logout();
+  }, [logout]);
+
   const loginWithPasskey = useCallback(async () => {
     await sdkLoginWithPasskey({ relyingParty: PASSKEY_RELYING_PARTY });
   }, [sdkLoginWithPasskey]);
@@ -141,6 +226,11 @@ function AuthBridge({ children }: { children: ReactNode }) {
   // Same order as bluvfi web's getUserFirstName(): Google profile name, then the local part of the
   // email, so every login method resolves to something displayable.
   const email = emailAccount?.address ?? googleAccount?.email;
+  // External Solana wallets linked for sign-in (the embedded wallets are listed separately and don't count).
+  const linkedWalletAddresses = (user?.linked_accounts ?? [])
+    .filter((a) => a.type === 'wallet' && (a as { chain_type?: string }).chain_type === 'solana' && (a as { wallet_client_type?: string }).wallet_client_type !== 'privy')
+    .map((a) => (a as { address: string }).address);
+  const isWalletOnly = isAuthenticated && !email && linkedWalletAddresses.length > 0;
   const firstName = googleAccount?.name?.split(' ')[0] || email?.split('@')[0];
 
   const value: AuthContextType = {
@@ -159,7 +249,16 @@ function AuthBridge({ children }: { children: ReactNode }) {
     loginWithPasskey,
     signupWithPasskey,
     passkeyState,
-    logout,
+    walletLoginAvailable: mwaAvailable,
+    loginWithSolanaWallet,
+    linkSolanaWallet,
+    linkedWalletAddresses,
+    isWalletOnly,
+    sendLinkEmailCode,
+    linkEmailWithCode,
+    linkEmailState,
+    linkGoogle,
+    logout: logoutAndForget,
     getAccessToken,
     getEvmProvider,
     getEvmWallet,

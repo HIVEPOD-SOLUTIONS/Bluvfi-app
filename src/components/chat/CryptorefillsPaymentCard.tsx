@@ -8,6 +8,8 @@ import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
+import { PayFromPicker } from '@/components/wallet/PayFromPicker';
+import { useSolanaPaySource } from '@/lib/wallet-connection';
 import { sendFromWallet, walletRailFor } from '@/lib/payments/wallet-send';
 import {
   GaslessUnavailableError,
@@ -71,6 +73,8 @@ const usd = (n: number) => `$${n.toFixed(2)}`;
 export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: string; output: Output }) {
   const { getAccessToken, getEvmProvider, getEvmWallet, getSolanaProvider, evmAddress, solanaAddress } = useAuth();
   const { reportToolResult } = useChatSheet();
+  // Solana payments can come from Bluvfi's wallet or the wallet the user connected (their choice, shown below).
+  const solanaPay = useSolanaPaySource({ address: solanaAddress, getProvider: getSolanaProvider });
   const queryClient = useQueryClient();
   const payWith = output.payWith ?? output.rail ?? 'base';
   const isOther = payWith === 'other';
@@ -181,7 +185,7 @@ export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: s
       expectedUsd: output.priceUsd,
       rail,
       evm: evmAddress ? { provider: await getEvmProvider(), address: evmAddress } : undefined,
-      solana: rail === 'solana' && solanaAddress ? { provider: await getSolanaProvider(), address: solanaAddress } : undefined,
+      solana: rail === 'solana' && solanaPay.address ? { provider: await solanaPay.getProvider(), address: solanaPay.address } : undefined,
       getAccessToken,
       onStep: setState,
       confirmPriceChange: (amount) =>
@@ -241,7 +245,7 @@ export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: s
           to: created.wallet_address,
           amount: created.coin_amount,
           evmWallet: getEvmWallet,
-          solana: solanaAddress ? { address: solanaAddress, getProvider: getSolanaProvider } : undefined,
+          solana: solanaPay.address ? { address: solanaPay.address, getProvider: solanaPay.getProvider } : undefined,
         });
         markSentFromWallet('cr_' + created.order_id, hash);
       } catch (e) {
@@ -296,6 +300,8 @@ export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: s
           <Text style={styles.tiny}>{payLabel}</Text>
         </View>
       </View>
+
+      {state === 'idle' && payWith === 'solana' && <PayFromPicker needed={output.priceUsd} />}
 
       {state === 'idle' && (
         <View style={styles.actions}>

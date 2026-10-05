@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import type { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import type { Connection, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 
 /**
  * Solana Mobile Wallet Adapter (MWA) — lets the user connect an external Solana wallet app (Seeker's Seed Vault,
@@ -37,6 +37,8 @@ export interface ConnectedWallet {
   name: string;
   /** Lets the next session skip the approval screen; kept in secure storage. */
   authToken: string;
+  /** The user signed in with this wallet, so payments should default to it rather than the (empty) Bluvfi wallet. */
+  preferred?: boolean;
 }
 
 export type WalletErrorKind = 'not-found' | 'declined' | 'unavailable' | 'failed';
@@ -109,6 +111,7 @@ function toConnected(auth: { accounts: readonly { address: string; label?: strin
     address: new PublicKey(b64(account.address)).toBase58(),
     name: previous?.name && !auth.wallet_uri_base ? previous.name : walletName(auth.wallet_uri_base, account.label),
     authToken: auth.auth_token,
+    preferred: previous?.preferred,
   };
 }
 
@@ -133,6 +136,54 @@ export async function connectWallet(previous?: ConnectedWallet | null): Promise<
         throw friendlyWalletError(retryErr);
       }
     }
+    throw friendlyWalletError(err);
+  }
+}
+
+export interface WalletSignIn {
+  wallet: ConnectedWallet;
+  /** The Sign-In With Solana message Privy generated for this address. */
+  message: string;
+  /** Base64 ed25519 signature of that message. */
+  signature: string;
+  /** Wallet name in the form Privy records it ("phantom", "solflare", "seed_vault"…). */
+  walletClientType: string;
+}
+
+/** Pulls the 64-byte signature out of what a wallet returned: some append it to the message, some return it alone. */
+function extractSignature(signed: Uint8Array, message: Uint8Array): Uint8Array {
+  if (signed.length === 64) return signed;
+  if (signed.length === message.length + 64) return signed.slice(message.length);
+  // Unknown layout: the signature is, by convention, the last 64 bytes.
+  if (signed.length > 64) return signed.slice(signed.length - 64);
+  throw new WalletError("Your wallet returned an unexpected signature. Please try again.", 'failed');
+}
+
+/**
+ * Sign-in half of "Sign in with Solana": in ONE wallet session, authorise, let the caller turn the address into the
+ * message to sign (Privy generates it, with a server nonce), and have the wallet sign it. The caller then hands the
+ * message and signature to Privy to log in (or link). One session means one trip to the wallet app.
+ */
+export async function signInWithWallet(makeMessage: (address: string) => Promise<string>): Promise<WalletSignIn> {
+  const m = requireMwa();
+  try {
+    return await m.transact(async (wallet) => {
+      const auth = await wallet.authorize({ identity: APP_IDENTITY, chain: CHAIN });
+      const connected = toConnected(auth);
+      const message = await makeMessage(connected.address);
+      const payload = new TextEncoder().encode(message);
+      const [signed] = await wallet.signMessages({ addresses: [auth.accounts[0].address], payloads: [payload] });
+      const signature = extractSignature(signed, payload);
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Buffer } = require('buffer') as typeof import('buffer');
+      return {
+        wallet: { ...connected, preferred: true },
+        message,
+        signature: Buffer.from(signature).toString('base64'),
+        walletClientType: connected.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'solana_wallet',
+      };
+    });
+  } catch (err) {
     throw friendlyWalletError(err);
   }
 }
@@ -163,6 +214,52 @@ export async function signAndSend(
   } catch (err) {
     throw friendlyWalletError(err);
   }
+}
+
+// ── A drop-in signer for the payment flows ───────────────────────────────────
+
+/**
+ * The slice of a Solana wallet provider the payment flows use. Bluvfi's own (Privy) wallet exposes this exact
+ * shape, so a connected wallet that does too can pay through the same code — each flow just gets handed a
+ * different provider and address.
+ */
+export interface SolanaSigner {
+  request(args: {
+    method: 'signAndSendTransaction' | 'signTransaction';
+    params: { transaction: Transaction | VersionedTransaction; connection?: unknown };
+  }): Promise<{ signature?: string; signedTransaction?: Transaction | VersionedTransaction }>;
+}
+
+/**
+ * A SolanaSigner backed by the connected wallet app: each request opens it for one approval. The wallet must still be
+ * on the account the transaction was built for; if the user switched accounts, the request is refused so funds can't
+ * move from an account they didn't expect.
+ */
+export function createMwaSigner(getCurrent: () => ConnectedWallet | null, onUpdate: (wallet: ConnectedWallet) => void): SolanaSigner {
+  return {
+    async request({ method, params }) {
+      const current = getCurrent();
+      if (!current) throw new WalletError('Connect your wallet first.', 'failed');
+      const m = requireMwa();
+      try {
+        return await m.transact(async (wallet) => {
+          const fresh = toConnected(await wallet.authorize({ identity: APP_IDENTITY, chain: CHAIN, auth_token: current.authToken }), current);
+          onUpdate(fresh);
+          if (fresh.address !== current.address) {
+            throw new WalletError(`Your wallet is now using a different account (${fresh.address.slice(0, 4)}…${fresh.address.slice(-4)}). Please try again.`, 'failed');
+          }
+          if (method === 'signAndSendTransaction') {
+            const [signature] = await wallet.signAndSendTransactions({ transactions: [params.transaction] });
+            return { signature };
+          }
+          const [signedTransaction] = await wallet.signTransactions({ transactions: [params.transaction] });
+          return { signedTransaction };
+        });
+      } catch (err) {
+        throw friendlyWalletError(err);
+      }
+    },
+  };
 }
 
 // ── Transfers ────────────────────────────────────────────────────────────────
