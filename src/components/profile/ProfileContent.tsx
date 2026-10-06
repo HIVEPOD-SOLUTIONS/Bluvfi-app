@@ -124,7 +124,7 @@ interface ProfileContentProps {
 
 /** Account details (email, wallets, balances), premium status, social/legal links and log out. */
 export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: ProfileContentProps) {
-  const { email, evmAddress, solanaAddress, logout } = useAuth();
+  const { email, displayName, evmAddress, solanaAddress, logout } = useAuth();
   const { data: balances, isLoading: balancesLoading } = useBalances(evmAddress, solanaAddress);
   const { wallet: connectedWallet } = useConnectedWallet();
   const xrpl = useXrplWallet();
@@ -156,16 +156,20 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
     <View style={styles.root}>
       <View>
       <View style={styles.header}>
-        <Avatar email={email ?? connectedWallet?.name} size={52} />
+        <Avatar email={displayName ?? email ?? connectedWallet?.address} size={52} />
         <View style={styles.identity}>
           <Text style={styles.name} numberOfLines={1}>
-            {email?.split('@')[0] ?? connectedWallet?.name ?? 'Signed in'}
+            {displayName ?? 'Signed in'}
           </Text>
-          {email && (
+          {email ? (
             <Text style={styles.email} numberOfLines={1}>
               {email}
             </Text>
-          )}
+          ) : connectedWallet ? (
+            <Text style={styles.email} numberOfLines={1}>
+              Signed in with {connectedWallet.name}
+            </Text>
+          ) : null}
         </View>
       </View>
 

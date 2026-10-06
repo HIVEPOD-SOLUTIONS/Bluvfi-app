@@ -68,7 +68,7 @@ function ChatIcon() {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { email, firstName, evmAddress, solanaAddress } = useAuth();
+  const { email, firstName, displayName, evmAddress, solanaAddress } = useAuth();
   // A wallet-only account has no email; the avatar then shows the wallet's initial.
   const { wallet: signInWallet } = useConnectedWallet();
   const { isPremium, setIsPremium } = usePremium();
@@ -140,7 +140,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open profile menu"
           >
-            <Avatar email={email ?? signInWallet?.name} size={36} />
+            <Avatar email={displayName ?? email ?? signInWallet?.address} size={36} />
           </Pressable>
 
           <View style={styles.brand}>
@@ -168,7 +168,7 @@ export default function HomeScreen() {
 
         <Text style={styles.greeting}>
           {greeting}
-          {firstName ? `, ${firstName}` : ''} 👋
+          {firstName ?? displayName ? `, ${firstName ?? displayName}` : ''} 👋
         </Text>
 
         <View style={styles.cardsRow}>

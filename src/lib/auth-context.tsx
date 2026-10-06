@@ -41,10 +41,11 @@ const PASSKEY_RELYING_PARTY = 'bluvfi.xyz';
 const SUPPORTED_CHAINS: [Chain, ...Chain[]] = [base, polygon, arbitrum, optimism, mainnet, domaChain];
 
 /**
- * "Sign in with Solana" identifies this app to Privy by its app id (the same id Privy's dashboard allows for this
- * app) and its website. Overridable without a rebuild if Privy's dashboard expects different values.
+ * "Sign in with Solana" tells Privy which website is asking for the signature. Privy only accepts a domain that is one
+ * of the app's allowed origins (checked against its API: www.bluvfi.xyz and bluvfi.xyz pass, the Android app id
+ * com.bluvfi.xyz is rejected as "Invalid SIWS message and/or nonce"). Overridable without a rebuild.
  */
-const SIWS_DOMAIN = process.env.EXPO_PUBLIC_SIWS_DOMAIN ?? 'com.bluvfi.xyz';
+const SIWS_DOMAIN = process.env.EXPO_PUBLIC_SIWS_DOMAIN ?? 'www.bluvfi.xyz';
 const SIWS_URI = process.env.EXPO_PUBLIC_SIWS_URI ?? 'https://www.bluvfi.xyz';
 
 interface AuthContextType {
@@ -52,6 +53,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   userId: string | undefined;
   firstName: string | undefined;
+  /** What to call the person on screen: Google name, else the email's local part, else (wallet-only) a short wallet address. */
+  displayName: string | undefined;
   email: string | undefined;
   evmAddress: string | undefined;
   solanaAddress: string | undefined;
@@ -232,12 +235,16 @@ function AuthBridge({ children }: { children: ReactNode }) {
     .map((a) => (a as { address: string }).address);
   const isWalletOnly = isAuthenticated && !email && linkedWalletAddresses.length > 0;
   const firstName = googleAccount?.name?.split(' ')[0] || email?.split('@')[0];
+  const walletAddr = linkedWalletAddresses[0];
+  const displayName =
+    googleAccount?.name || email?.split('@')[0] || (walletAddr ? `${walletAddr.slice(0, 4)}…${walletAddr.slice(-4)}` : undefined);
 
   const value: AuthContextType = {
     isReady,
     isAuthenticated,
     userId: user?.id,
     firstName,
+    displayName,
     email,
     evmAddress: ethereum.wallets[0]?.address,
     solanaAddress: solana.wallets?.[0]?.address,

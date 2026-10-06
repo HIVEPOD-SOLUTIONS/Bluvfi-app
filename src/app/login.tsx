@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { WalletRiskModal } from '@/components/wallet/WalletRiskModal';
 import { useAuth } from '@/lib/auth-context';
+import { isSeekerDevice } from '@/lib/seeker';
 import { acceptWalletRisk, hasAcceptedWalletRisk } from '@/lib/wallet-risk';
 
 const RESEND_COOLDOWN_S = 30;
@@ -100,7 +101,7 @@ export default function LoginScreen() {
   // Sign in with a Solana wallet app (Android, Mobile Wallet Adapter). On a Seeker it leads, since Seed Vault is built in.
   const [walletBusy, setWalletBusy] = useState(false);
   const [riskOpen, setRiskOpen] = useState(false);
-  const onSeeker = /seeker/i.test(String((Platform.constants as { Model?: string }).Model ?? ''));
+  const onSeeker = isSeekerDevice();
 
   const runWalletLogin = async () => {
     setError(null);

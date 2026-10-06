@@ -9,6 +9,7 @@ import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { buildTransfer, fetchWalletBalances, friendlyWalletError, type TransferAsset } from '@/lib/mwa';
 import { sendFromWallet, walletRailFor } from '@/lib/payments/wallet-send';
+import { useSeekerOwner } from '@/lib/seeker';
 import { useConnectedWallet } from '@/lib/wallet-connection';
 
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -35,6 +36,7 @@ export function ConnectedWalletCard({ bluvfiSolanaAddress }: { bluvfiSolanaAddre
   const [linkError, setLinkError] = useState<string | null>(null);
   const [mode, setMode] = useState<'deposit' | 'withdraw' | null>(null);
   const { copied, copy } = useCopy(wallet?.address ?? '');
+  const seeker = useSeekerOwner(wallet?.address);
   const balances = useQuery({
     queryKey: ['mwa-balances', wallet?.address],
     queryFn: () => fetchWalletBalances(wallet!.address),
@@ -107,6 +109,11 @@ export function ConnectedWalletCard({ bluvfiSolanaAddress }: { bluvfiSolanaAddre
               <View style={styles.dot} />
               <Text style={styles.connectedText}>Connected</Text>
             </View>
+            {seeker.isOwner ? (
+              <View style={styles.seekerPill}>
+                <Text style={styles.seekerText}>Seeker</Text>
+              </View>
+            ) : null}
           </View>
           <Pressable onPress={copy} hitSlop={6}>
             <Text style={styles.sub}>
@@ -383,6 +390,9 @@ const styles = StyleSheet.create({
   connectedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(143,174,130,0.12)', borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.sage },
   connectedText: { ...Type.small, fontSize: 11, color: Colors.sage },
+  // Seeker owners get a neutral badge: sage is for positive status and gold is reserved for Premium in the design system.
+  seekerPill: { backgroundColor: Colors.bg2, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8 },
+  seekerText: { ...Type.small, fontSize: 11, fontFamily: Fonts.sansSemiBold, color: Colors.tx0 },
   perks: { gap: 6 },
   perkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   tick: { color: Colors.sage, fontFamily: Fonts.sansBold },

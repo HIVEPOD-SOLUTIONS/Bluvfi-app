@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import type { Connection, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
+import { isSeekerDevice } from '@/lib/seeker';
 
 /**
  * Solana Mobile Wallet Adapter (MWA) — lets the user connect an external Solana wallet app (Seeker's Seed Vault,
@@ -85,7 +86,11 @@ const b64 = (s: string) => {
   return Buffer.from(s, 'base64');
 };
 
-/** The wallet's name from the link base it advertises (it has no separate "name" field), else its own account label. */
+/**
+ * The wallet's name, from the link base it advertises (MWA has no "name" field). The account label is only used to spot
+ * Seed Vault: it names the account ("Account 1", "fakewallet account 0"), not the wallet, so showing it, or sending it to
+ * Privy as the wallet type, would put arbitrary wallet-supplied text in the UI.
+ */
 function walletName(uriBase: string | undefined, label: string | undefined): string {
   const host = (() => {
     try {
@@ -98,8 +103,11 @@ function walletName(uriBase: string | undefined, label: string | undefined): str
   if (/solflare/i.test(host)) return 'Solflare';
   if (/backpack/i.test(host)) return 'Backpack';
   if (/jup/i.test(host)) return 'Jupiter';
-  if (/seedvault|solanamobile/i.test(host)) return 'Seed Vault';
-  return label && label.length <= 24 ? label : 'Solana wallet';
+  // The Seeker's built-in wallet. It may say so in its account label or link base; failing that, a wallet that
+  // advertises no link base on a Seeker is almost certainly the built-in Seed Vault wallet.
+  if (/seed\s*-?vault|seeker|solanamobile/i.test(`${host} ${label ?? ''}`)) return 'Seed Vault';
+  if (isSeekerDevice() && !host) return 'Seed Vault';
+  return 'Solana wallet';
 }
 
 function toConnected(auth: { accounts: readonly { address: string; label?: string }[]; auth_token: string; wallet_uri_base?: string }, previous?: ConnectedWallet): ConnectedWallet {
@@ -160,29 +168,39 @@ function extractSignature(signed: Uint8Array, message: Uint8Array): Uint8Array {
 }
 
 /**
- * Sign-in half of "Sign in with Solana": in ONE wallet session, authorise, let the caller turn the address into the
- * message to sign (Privy generates it, with a server nonce), and have the wallet sign it. The caller then hands the
- * message and signature to Privy to log in (or link). One session means one trip to the wallet app.
+ * Sign-in half of "Sign in with Solana". Privy has to generate the message to sign (with a server nonce) once the
+ * address is known, and that is a network call. Making it while the wallet app is open stalls: Bluvfi is in the
+ * background then, and on the emulator Android froze it before the request came back, so the wallet session timed out.
+ * So the trip is split: authorise, return to Bluvfi, fetch the message with the app in the foreground, then reopen the
+ * wallet with the auth token it just issued (no second approval to connect) and have it sign. The caller hands the
+ * message and signature to Privy to log in (or link).
  */
 export async function signInWithWallet(makeMessage: (address: string) => Promise<string>): Promise<WalletSignIn> {
   const m = requireMwa();
   try {
-    return await m.transact(async (wallet) => {
-      const auth = await wallet.authorize({ identity: APP_IDENTITY, chain: CHAIN });
-      const connected = toConnected(auth);
-      const message = await makeMessage(connected.address);
-      const payload = new TextEncoder().encode(message);
-      const [signed] = await wallet.signMessages({ addresses: [auth.accounts[0].address], payloads: [payload] });
-      const signature = extractSignature(signed, payload);
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Buffer } = require('buffer') as typeof import('buffer');
-      return {
-        wallet: { ...connected, preferred: true },
-        message,
-        signature: Buffer.from(signature).toString('base64'),
-        walletClientType: connected.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'solana_wallet',
-      };
+    const connected = await m.transact(async (wallet) =>
+      toConnected(await wallet.authorize({ identity: APP_IDENTITY, chain: CHAIN })),
+    );
+    const message = await makeMessage(connected.address);
+    const payload = new TextEncoder().encode(message);
+    const { signed, wallet: after } = await m.transact(async (wallet) => {
+      const auth = await wallet.authorize({ identity: APP_IDENTITY, chain: CHAIN, auth_token: connected.authToken });
+      const again = toConnected(auth, connected);
+      if (again.address !== connected.address) {
+        throw new WalletError('You switched accounts in your wallet. Please try again.', 'failed');
+      }
+      const [sig] = await wallet.signMessages({ addresses: [auth.accounts[0].address], payloads: [payload] });
+      return { signed: sig, wallet: again };
     });
+    const signature = extractSignature(signed, payload);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Buffer } = require('buffer') as typeof import('buffer');
+    return {
+      wallet: { ...after, preferred: true },
+      message,
+      signature: Buffer.from(signature).toString('base64'),
+      walletClientType: after.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'solana_wallet',
+    };
   } catch (err) {
     throw friendlyWalletError(err);
   }
