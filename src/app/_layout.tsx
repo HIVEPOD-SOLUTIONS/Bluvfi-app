@@ -1,6 +1,6 @@
 import '@/lib/polyfills';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,7 +11,11 @@ import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold
 import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { ToastProvider } from '@/components/ui/Toast';
+import { ToastProvider, useToast } from '@/components/ui/Toast';
+import { useApiClient } from '@/hooks/use-api';
+import { applyPendingReferral } from '@/lib/referral';
+import { WalletConnectionProvider } from '@/lib/wallet-connection';
+import { describeConversion, loadSkrPay, onAutoConversion } from '@/lib/skr-pay';
 import { Colors } from '@/constants/theme';
 import { initRevenueCat } from '@/lib/revenuecat';
 import { initAds } from '@/lib/admob';
@@ -57,15 +61,48 @@ export default function RootLayout() {
 
 function AuthGate() {
   const { isReady, isAuthenticated, userId } = useAuth();
+  const call = useApiClient();
+  const toast = useToast();
+  const callRef = useRef(call);
+  callRef.current = call;
 
   useEffect(() => {
     if (isReady) SplashScreen.hideAsync();
   }, [isReady]);
 
+  // The "use my SKR when I'm short on USDC" setting, and the message after a payment has converted some.
+  useEffect(() => {
+    void loadSkrPay();
+  }, []);
+  useEffect(
+    () =>
+      onAutoConversion((c) => {
+        const d = describeConversion(c);
+        toast({ variant: 'success', title: d.title, subtitle: d.subtitle });
+      }),
+    [toast],
+  );
+
   useEffect(() => {
     // Mirrors bluvfi web's AppLayout: initialize RevenueCat once logged in.
     if (isAuthenticated && userId) initRevenueCat(userId);
   }, [isAuthenticated, userId]);
+
+  useEffect(() => {
+    // A referral code entered before there was an account (or from a friend's link) is applied the moment they are signed in.
+    if (!isAuthenticated) return;
+    let alive = true;
+    applyPendingReferral((path, options) => callRef.current(path, options)).then((outcome) => {
+      if (!alive) return;
+      if (outcome === 'applied') toast({ variant: 'success', title: 'Referral applied', subtitle: 'You’re now a companion of whoever invited you.' });
+      else if (outcome === 'rejected') toast({ variant: 'error', title: 'That referral code didn’t work' });
+    });
+    return () => {
+      alive = false;
+    };
+    // Once per sign-in; toast is stable enough and callRef always holds the latest client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   useEffect(() => {
     // AdMob consent + init once signed in, so the rewarded ad is ready when the chat's daily limit is hit.
@@ -85,15 +122,29 @@ function AuthGate() {
   // Mirrors bluvfi web's app/page.tsx: always shows the onboarding carousel
   // first when logged out (no "seen before" persistence there either), with
   // Skip/Get started pushing into the login screen.
-  return (
+  const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg0 } }}>
       {isAuthenticated
-        ? [<Stack.Screen key="tabs" name="(tabs)" />, <Stack.Screen key="oauth-callback" name="oauth-callback" />]
+        ? [
+            <Stack.Screen key="tabs" name="(tabs)" />,
+            <Stack.Screen key="provider" name="provider/[id]" />,
+            <Stack.Screen key="provider-new" name="provider/new" />,
+            <Stack.Screen key="provider-edit" name="provider/edit/[id]" />,
+            <Stack.Screen key="creator" name="creator" />,
+            <Stack.Screen key="ref" name="ref/[code]" />,
+            <Stack.Screen key="activity" name="activity" />,
+            <Stack.Screen key="faq" name="faq" />,
+            <Stack.Screen key="oauth-callback" name="oauth-callback" />,
+          ]
         : [
             <Stack.Screen key="onboarding" name="onboarding" />,
             <Stack.Screen key="login" name="login" />,
+            <Stack.Screen key="ref" name="ref/[code]" />,
             <Stack.Screen key="oauth-callback" name="oauth-callback" />,
           ]}
     </Stack>
   );
+
+  // The connected-wallet state is shared by every signed-in screen (the tabs and the provider page alike), and starts fresh after logout.
+  return isAuthenticated ? <WalletConnectionProvider>{stack}</WalletConnectionProvider> : stack;
 }

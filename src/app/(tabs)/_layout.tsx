@@ -1,9 +1,11 @@
+import { useEffect, useMemo, useRef } from 'react';
+import type { ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, Type, BottomNavHeight } from '@/constants/theme';
 import { ChatSheet } from '@/components/chat/ChatSheet';
+import { onAskAssistant } from '@/lib/ask-assistant';
 import { ChatProvider, useChatSheet } from '@/lib/chat-context';
-import { WalletConnectionProvider } from '@/lib/wallet-connection';
 
 function HomeIcon({ color }: { color: string }) {
   return (
@@ -42,55 +44,83 @@ function ProfileIcon({ color }: { color: string }) {
   );
 }
 
-function TabsWithChat() {
+/**
+ * Everything the navigator is given is constant (module-level objects, a listeners object made once). The chat context changes
+ * constantly (balances loading, messages streaming), and this component used to re-render with it, handing the navigator brand
+ * new `options` and `listeners` objects every time. Opening a hidden tab (Shar, Network) while data was still loading could then
+ * set off "Maximum update depth exceeded" inside BottomTabNavigator. Now this component never re-renders on chat changes: a tiny
+ * bridge below keeps a ref pointing at the current `openChat`.
+ */
+const SCREEN_OPTIONS = {
+  headerShown: false,
+  tabBarActiveTintColor: Colors.blue,
+  tabBarInactiveTintColor: Colors.tx1,
+  tabBarStyle: {
+    backgroundColor: Colors.bg1,
+    borderTopColor: Colors.border,
+    borderTopWidth: 1,
+    height: BottomNavHeight,
+  },
+  tabBarLabelStyle: {
+    fontFamily: Type.label.fontFamily,
+    fontSize: Type.label.fontSize,
+    letterSpacing: Type.label.letterSpacing,
+    textTransform: Type.label.textTransform,
+  },
+} as const;
+
+const HOME_OPTIONS = { title: 'Home', tabBarIcon: ({ color }: { color: ColorValue }) => <HomeIcon color={String(color)} /> };
+const CRYPTO_OPTIONS = { title: 'Crypto', tabBarIcon: ({ color }: { color: ColorValue }) => <CryptoIcon color={String(color)} /> };
+const CHAT_OPTIONS = { title: 'AI Chat', tabBarIcon: ({ color }: { color: ColorValue }) => <ChatIcon color={String(color)} /> };
+const PROFILE_OPTIONS = { title: 'Profile', tabBarIcon: ({ color }: { color: ColorValue }) => <ProfileIcon color={String(color)} /> };
+// Shar rewards and the open provider network: opened from Home and Profile, not from the tab bar.
+const HIDDEN_OPTIONS = { href: null } as const;
+
+type OpenChat = ReturnType<typeof useChatSheet>['openChat'];
+
+/** Renders nothing; keeps `target.current` pointing at the latest openChat without making its parent re-render. */
+function OpenChatBridge({ target }: { target: { current: OpenChat | null } }) {
   const { openChat } = useChatSheet();
+  target.current = openChat;
+  // Screens outside the tabs (the FAQ) ask the assistant through here, since the sheet lives in this layout.
+  useEffect(() => onAskAssistant((prompt) => target.current?.(prompt)), [target]);
+  return null;
+}
+
+function TabsWithChat() {
+  const openChatRef = useRef<OpenChat | null>(null);
+  const chatListeners = useMemo(
+    () => ({
+      // AI Chat is a sheet over the current screen (like the web chat), not a page of its own.
+      tabPress: (e: { preventDefault: () => void }) => {
+        e.preventDefault();
+        openChatRef.current?.();
+      },
+    }),
+    [],
+  );
+
   return (
     <>
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: Colors.blue,
-        tabBarInactiveTintColor: Colors.tx1,
-        tabBarStyle: {
-          backgroundColor: Colors.bg1,
-          borderTopColor: Colors.border,
-          borderTopWidth: 1,
-          height: BottomNavHeight,
-        },
-        tabBarLabelStyle: {
-          fontFamily: Type.label.fontFamily,
-          fontSize: Type.label.fontSize,
-          letterSpacing: Type.label.letterSpacing,
-          textTransform: Type.label.textTransform,
-        },
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <HomeIcon color={String(color)} /> }} />
-      <Tabs.Screen name="crypto" options={{ title: 'Crypto', tabBarIcon: ({ color }) => <CryptoIcon color={String(color)} /> }} />
-      <Tabs.Screen
-        name="chat"
-        options={{ title: 'AI Chat', tabBarIcon: ({ color }) => <ChatIcon color={String(color)} /> }}
-        listeners={{
-          // AI Chat is a sheet over the current screen (like the web chat), not a page of its own.
-          tabPress: (e) => {
-            e.preventDefault();
-            openChat();
-          },
-        }}
-      />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <ProfileIcon color={String(color)} /> }} />
-    </Tabs>
-    <ChatSheet />
+      <OpenChatBridge target={openChatRef} />
+      <Tabs screenOptions={SCREEN_OPTIONS}>
+        <Tabs.Screen name="index" options={HOME_OPTIONS} />
+        <Tabs.Screen name="crypto" options={CRYPTO_OPTIONS} />
+        <Tabs.Screen name="chat" options={CHAT_OPTIONS} listeners={chatListeners} />
+        <Tabs.Screen name="profile" options={PROFILE_OPTIONS} />
+        <Tabs.Screen name="shar" options={HIDDEN_OPTIONS} />
+        <Tabs.Screen name="network" options={HIDDEN_OPTIONS} />
+        <Tabs.Screen name="admin" options={HIDDEN_OPTIONS} />
+      </Tabs>
+      <ChatSheet />
     </>
   );
 }
 
 export default function TabsLayout() {
   return (
-    <WalletConnectionProvider>
-      <ChatProvider>
-        <TabsWithChat />
-      </ChatProvider>
-    </WalletConnectionProvider>
+    <ChatProvider>
+      <TabsWithChat />
+    </ChatProvider>
   );
 }

@@ -1,5 +1,7 @@
 import { Connection, PublicKey, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, createTransferInstruction, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { announceAutoConversion, skrPayEnabled } from '@/lib/skr-pay';
+import { coverUsdcWithSkr, SwapError, type SwapSigner } from '@/lib/skr-swap';
 
 /** Mirrors bluvfi web's `pay-bill-confirm-card.tsx` Solana payment path exactly. */
 export const SOLANA_USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -31,8 +33,28 @@ export async function sendUsdcSolana(
   const receiver = new PublicKey(toAddress);
 
   const senderAta = await getAssociatedTokenAddress(mint, sender);
-  const senderAccount = await getAccount(connection, senderAta).catch(() => null);
+  let senderAccount = await getAccount(connection, senderAta).catch(() => null);
   const requiredMicro = BigInt(Math.round(amount * 1_000_000));
+  // Short on USDC but holding SKR, with "use my SKR" on: convert just the missing amount first, then pay as normal.
+  if ((senderAccount?.amount ?? 0n) < requiredMicro && skrPayEnabled()) {
+    try {
+      const converted = await coverUsdcWithSkr({
+        enabled: true,
+        user: fromAddress,
+        balanceMicro: senderAccount?.amount ?? 0n,
+        requiredMicro,
+        provider: provider as unknown as SwapSigner,
+        connection,
+      });
+      if (converted) {
+        announceAutoConversion(converted);
+        senderAccount = await getAccount(connection, senderAta).catch(() => null);
+      }
+    } catch (e) {
+      if (e instanceof SwapError) throw new Error(`Couldn’t convert your SKR to cover this payment. ${e.message}`);
+      throw e;
+    }
+  }
   if (!senderAccount || senderAccount.amount < requiredMicro) {
     const bal = senderAccount ? (Number(senderAccount.amount) / 1_000_000).toFixed(2) : '0.00';
     throw new Error(`Insufficient USDC balance on Solana. You have $${bal} but need $${amount.toFixed(2)}.`);

@@ -1,10 +1,12 @@
-import { useRef } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { router } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { OrbIllustration, ShieldIllustration, VouchersIllustration } from '@/components/onboarding/illustrations';
 import { Button } from '@/components/ui/Button';
+import { ReferralCodeSheet } from '@/components/shar/ReferralCodeSheet';
+import { getPendingReferral } from '@/lib/referral';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 
 /** Same three themes as bluvfi web's onboarding, laid out like the reference: illustration, chip, heading. */
@@ -55,6 +57,15 @@ export default function OnboardingScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollX = useRef(new Animated.Value(0)).current;
+  const [referralOpen, setReferralOpen] = useState(false);
+  const [referral, setReferral] = useState<string | null>(null);
+
+  // A code saved earlier (or from a friend's link) shows here, so they know it will be applied.
+  useFocusEffect(
+    useCallback(() => {
+      getPendingReferral().then(setReferral);
+    }, []),
+  );
 
   const thumbTranslate = scrollX.interpolate({
     inputRange: [0, width * (SLIDES.length - 1)],
@@ -111,7 +122,20 @@ export default function OnboardingScreen() {
         >
           Log in
         </Button>
+        <Pressable onPress={() => setReferralOpen(true)} hitSlop={10} accessibilityRole="button" style={styles.referralLink}>
+          <Text style={styles.referralText}>
+            {referral ? (
+              <>
+                Referral code <Text style={styles.referralCode}>{referral}</Text> · applied when you sign up · Change
+              </>
+            ) : (
+              'Have a referral code?'
+            )}
+          </Text>
+        </Pressable>
       </View>
+
+      <ReferralCodeSheet open={referralOpen} onClose={() => setReferralOpen(false)} saved={referral} onSaved={setReferral} />
     </View>
   );
 }
@@ -170,5 +194,19 @@ const styles = StyleSheet.create({
   actions: {
     paddingHorizontal: Spacing.xxl,
     gap: Spacing.md,
+  },
+  referralLink: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.xs,
+  },
+  referralText: {
+    ...Type.small,
+    color: Colors.tx1,
+    textDecorationLine: 'underline',
+    textAlign: 'center',
+  },
+  referralCode: {
+    color: Colors.tx0,
+    letterSpacing: 1,
   },
 });

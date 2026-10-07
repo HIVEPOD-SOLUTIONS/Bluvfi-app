@@ -2,7 +2,8 @@
 // path order, and can reach this file before the root layout's polyfills import runs, so load them here first.
 import '@/lib/polyfills';
 
-import { createContext, useCallback, useContext, useEffect, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import {
   PrivyProvider as PrivySDKProvider,
   usePrivy,
@@ -21,6 +22,8 @@ import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
 import type { Chain } from 'viem';
 import { domaChain } from '@/lib/doma-chain';
 import { mwaAvailable, signInWithWallet } from '@/lib/mwa';
+import { useSkrName } from '@/lib/skr';
+import { setSolanaRpcAuth } from '@/lib/seeker';
 import { clearConnectedWallet, saveConnectedWallet } from '@/lib/wallet-connection';
 
 /**
@@ -55,6 +58,9 @@ interface AuthContextType {
   firstName: string | undefined;
   /** What to call the person on screen: Google name, else the email's local part, else (wallet-only) a short wallet address. */
   displayName: string | undefined;
+  /** The name the person chose for themselves (kept on this phone). It wins over the Google name, email and address. */
+  customName: string | undefined;
+  setCustomName: (name: string) => Promise<void>;
   email: string | undefined;
   evmAddress: string | undefined;
   solanaAddress: string | undefined;
@@ -110,6 +116,41 @@ function AuthBridge({ children }: { children: ReactNode }) {
   const solana = useEmbeddedSolanaWallet();
 
   const isAuthenticated = !!user;
+
+  // Seeker lookups (SGT badge, .skr names) go through Bluvfi's RPC endpoint with this token.
+  const accessTokenRef = useRef(getAccessToken);
+  accessTokenRef.current = getAccessToken;
+  useEffect(() => {
+    setSolanaRpcAuth(isAuthenticated ? () => accessTokenRef.current() : null);
+    return () => setSolanaRpcAuth(null);
+  }, [isAuthenticated]);
+
+  // A name the person typed in Profile, kept on the phone per account (SecureStore keys can't hold the colons in Privy ids).
+  const nameKey = user?.id ? `bluvfi.display-name.${user.id.replace(/[^A-Za-z0-9._-]/g, '_')}` : null;
+  const [customName, setCustomNameState] = useState<string | undefined>();
+  useEffect(() => {
+    setCustomNameState(undefined);
+    if (!nameKey) return;
+    let cancelled = false;
+    SecureStore.getItemAsync(nameKey)
+      .then((v) => {
+        if (!cancelled && v) setCustomNameState(v);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [nameKey]);
+  const setCustomName = useCallback(
+    async (name: string) => {
+      const clean = name.trim().replace(/s+/g, ' ').slice(0, 30);
+      if (!nameKey) return;
+      if (clean) await SecureStore.setItemAsync(nameKey, clean);
+      else await SecureStore.deleteItemAsync(nameKey);
+      setCustomNameState(clean || undefined);
+    },
+    [nameKey],
+  );
 
   // Mirrors bluvfi web's embeddedWallets.{ethereum,solana}.createOnLogin: "users-without-wallets".
   useEffect(() => {
@@ -234,10 +275,17 @@ function AuthBridge({ children }: { children: ReactNode }) {
     .filter((a) => a.type === 'wallet' && (a as { chain_type?: string }).chain_type === 'solana' && (a as { wallet_client_type?: string }).wallet_client_type !== 'privy')
     .map((a) => (a as { address: string }).address);
   const isWalletOnly = isAuthenticated && !email && linkedWalletAddresses.length > 0;
-  const firstName = googleAccount?.name?.split(' ')[0] || email?.split('@')[0];
   const walletAddr = linkedWalletAddresses[0];
+  // A Seeker's .skr name (Seeker ID) is the next-best name for someone who signed in with a wallet alone.
+  const skrName = useSkrName(walletAddr).name;
+  const firstName =
+    customName?.split(' ')[0] || googleAccount?.name?.split(' ')[0] || email?.split('@')[0] || skrName?.replace(/\.skr$/, '');
   const displayName =
-    googleAccount?.name || email?.split('@')[0] || (walletAddr ? `${walletAddr.slice(0, 4)}…${walletAddr.slice(-4)}` : undefined);
+    customName ||
+    googleAccount?.name ||
+    email?.split('@')[0] ||
+    skrName ||
+    (walletAddr ? `${walletAddr.slice(0, 4)}…${walletAddr.slice(-4)}` : undefined);
 
   const value: AuthContextType = {
     isReady,
@@ -245,6 +293,8 @@ function AuthBridge({ children }: { children: ReactNode }) {
     userId: user?.id,
     firstName,
     displayName,
+    customName,
+    setCustomName,
     email,
     evmAddress: ethereum.wallets[0]?.address,
     solanaAddress: solana.wallets?.[0]?.address,

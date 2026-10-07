@@ -49,7 +49,7 @@ export function ProfileDrawer({ open, onClose, isPremium, onUpgrade }: ProfileDr
           },
         ]}
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           <ProfileContent isPremium={isPremium} onUpgrade={onUpgrade} onBeforeLogout={onClose} />
         </ScrollView>
       </Animated.View>

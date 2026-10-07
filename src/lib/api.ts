@@ -9,6 +9,8 @@
  * the same endpoints the web app calls.
  */
 
+import { getDeviceId } from '@/lib/device';
+
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'https://www.bluvfi.xyz';
 
@@ -16,6 +18,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** A machine-readable reason some endpoints send alongside the message (e.g. 'creator_required'). */
+    public code?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -44,6 +48,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
+  // Which phone this is (a stable id; the server stores only a hash). Used to notice several accounts on one phone.
+  const device = await getDeviceId();
+  if (device) headers['X-Bluvfi-Device'] = device;
 
   const res = await fetch(url, {
     method,
@@ -53,13 +60,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
+    let code: string | undefined;
     try {
       const data = await res.json();
       if (typeof data?.error === 'string') message = data.error;
+      if (typeof data?.code === 'string') code = data.code;
     } catch {
       // response wasn't JSON — keep the generic message
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, code);
   }
 
   if (res.status === 204) return undefined as T;

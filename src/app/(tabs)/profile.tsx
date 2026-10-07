@@ -11,7 +11,7 @@ export default function ProfileScreen() {
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.lg }]}>
+    <ScrollView keyboardShouldPersistTaps="handled" style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.lg }]}>
       <ProfileContent isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
 
       <PaywallSheet

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useConnectedWallet } from '@/lib/wallet-connection';
+import { useSkrName } from '@/lib/skr';
+import { SharOrb } from '@/components/shar/SharOrb';
+import { SharColors } from '@/constants/shar';
+import { useAdminMe, useShar } from '@/hooks/use-shar';
 import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
@@ -124,9 +128,15 @@ interface ProfileContentProps {
 
 /** Account details (email, wallets, balances), premium status, social/legal links and log out. */
 export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: ProfileContentProps) {
-  const { email, displayName, evmAddress, solanaAddress, logout } = useAuth();
+  const { email, displayName, customName, setCustomName, evmAddress, solanaAddress, logout } = useAuth();
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const { data: balances, isLoading: balancesLoading } = useBalances(evmAddress, solanaAddress);
   const { wallet: connectedWallet } = useConnectedWallet();
+  const skr = useSkrName(connectedWallet?.address);
+  const shar = useShar().data;
+  // Only people on the server's admin list ever see this row (the server checks again on every admin call).
+  const isAdmin = !!useAdminMe().data?.admin;
   const xrpl = useXrplWallet();
   const xrplBalance = useXrpBalance(!!xrpl.address);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -158,6 +168,40 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
       <View style={styles.header}>
         <Avatar email={displayName ?? email ?? connectedWallet?.address} size={52} />
         <View style={styles.identity}>
+          {editingName ? (
+            <View style={styles.nameEdit}>
+              <TextInput
+                style={styles.nameInput}
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                placeholder="Your name"
+                placeholderTextColor={Colors.tx2}
+                maxLength={30}
+                autoFocus
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  setCustomName(nameDraft).catch(() => {});
+                  setEditingName(false);
+                }}
+              />
+              <View style={styles.nameActions}>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => {
+                    setCustomName(nameDraft).catch(() => {});
+                    setEditingName(false);
+                  }}
+                >
+                  <Text style={styles.nameLink}>Save</Text>
+                </Pressable>
+                <Pressable hitSlop={8} onPress={() => setEditingName(false)}>
+                  <Text style={styles.nameLinkMuted}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <>
           <Text style={styles.name} numberOfLines={1}>
             {displayName ?? 'Signed in'}
           </Text>
@@ -170,14 +214,60 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
               Signed in with {connectedWallet.name}
             </Text>
           ) : null}
+          <Pressable
+            hitSlop={8}
+            onPress={() => {
+              setNameDraft(customName ?? '');
+              setEditingName(true);
+            }}
+          >
+            <Text style={styles.nameLink}>{customName ? 'Edit name' : 'Set your name'}</Text>
+          </Pressable>
+            </>
+          )}
         </View>
       </View>
 
       <RecoveryCard />
 
+      {isAdmin ? (
+        <Pressable
+          onPress={() => {
+            onBeforeLogout?.();
+            router.push('/admin' as never); // typed routes pick this up the next time Metro runs
+          }}
+          style={styles.sharRow}
+          accessibilityRole="button"
+          accessibilityLabel="Open the admin queue"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sharTitle}>Admin</Text>
+            <Text style={styles.sharSub}>Review providers and send payouts</Text>
+          </View>
+          <Text style={styles.sharGo}>›</Text>
+        </Pressable>
+      ) : null}
+
+      <Pressable
+        onPress={() => {
+          onBeforeLogout?.(); // closes the Home sidebar when this is shown there
+          router.push('/shar');
+        }}
+        style={styles.sharRow}
+        accessibilityRole="button"
+        accessibilityLabel="Open Shar rewards"
+      >
+        <SharOrb size={36} animated={false} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sharTitle}>Shar rewards</Text>
+          <Text style={styles.sharSub}>{shar ? `${shar.available.toLocaleString('en-US')} Shar · ${shar.tier.name}` : 'Earn as you spend'}</Text>
+        </View>
+        <Text style={styles.sharGo}>›</Text>
+      </Pressable>
+
       <AddressRow label="EVM WALLET" address={evmAddress} />
       <AddressRow label="SOLANA WALLET" address={solanaAddress} />
-      {connectedWallet ? <AddressRow label={`CONNECTED · ${connectedWallet.name.toUpperCase()}`} address={connectedWallet.address} /> : null}
+      {connectedWallet ? <AddressRow label={`CONNECTED · ${connectedWallet.name.toUpperCase()}${skr.name ? ` · ${skr.name.toUpperCase()}` : ''}`} address={connectedWallet.address} /> : null}
       {!xrpl.unavailable && (
         xrpl.address ? (
           <AddressRow label="XRPL WALLET" address={xrpl.address} />
@@ -234,6 +324,38 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
           Upgrade to Premium
         </Button>
       )}
+
+      <Pressable
+        onPress={() => {
+          onBeforeLogout?.();
+          router.push('/activity' as never);
+        }}
+        style={styles.sharRow}
+        accessibilityRole="button"
+        accessibilityLabel="Open your activity"
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sharTitle}>Activity</Text>
+          <Text style={styles.sharSub}>Shar, credits and commission in one list</Text>
+        </View>
+        <Text style={styles.sharGo}>›</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          onBeforeLogout?.();
+          router.push('/faq' as never);
+        }}
+        style={styles.sharRow}
+        accessibilityRole="button"
+        accessibilityLabel="Help and frequently asked questions"
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sharTitle}>Help & FAQ</Text>
+          <Text style={styles.sharSub}>Answers about money, Shar and the network</Text>
+        </View>
+        <Text style={styles.sharGo}>›</Text>
+      </Pressable>
 
       <View style={{ height: Spacing.lg }} />
 
@@ -316,6 +438,23 @@ const styles = StyleSheet.create({
     ...Type.small,
     color: Colors.tx1,
   },
+  sharRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: SharColors.tint, borderRadius: Radii.lg, borderWidth: 1, borderColor: SharColors.tintBorder, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, marginBottom: Spacing.lg },
+  sharTitle: { ...Type.h3, color: Colors.tx0 },
+  sharSub: { ...Type.small, color: Colors.tx1, marginTop: 1 },
+  sharGo: { fontSize: 22, color: Colors.tx1 },
+  nameEdit: { gap: Spacing.xs },
+  nameInput: {
+    backgroundColor: Colors.bg2,
+    borderRadius: Radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    color: Colors.tx0,
+    fontFamily: Type.body.fontFamily,
+    fontSize: 16,
+  },
+  nameActions: { flexDirection: 'row', gap: Spacing.lg },
+  nameLink: { ...Type.small, color: Colors.tx1, fontFamily: Fonts.sansSemiBold, textDecorationLine: 'underline' },
+  nameLinkMuted: { ...Type.small, color: Colors.tx2 },
   sectionLabel: {
     ...Type.label,
     color: Colors.tx2,

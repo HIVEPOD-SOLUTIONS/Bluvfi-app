@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { buildTransfer, fetchWalletBalances, friendlyWalletError, type TransferAsset } from '@/lib/mwa';
 import { sendFromWallet, walletRailFor } from '@/lib/payments/wallet-send';
 import { useSeekerOwner } from '@/lib/seeker';
+import { useSkrName } from '@/lib/skr';
 import { useConnectedWallet } from '@/lib/wallet-connection';
 
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -37,6 +38,7 @@ export function ConnectedWalletCard({ bluvfiSolanaAddress }: { bluvfiSolanaAddre
   const [mode, setMode] = useState<'deposit' | 'withdraw' | null>(null);
   const { copied, copy } = useCopy(wallet?.address ?? '');
   const seeker = useSeekerOwner(wallet?.address);
+  const skr = useSkrName(wallet?.address);
   const balances = useQuery({
     queryKey: ['mwa-balances', wallet?.address],
     queryFn: () => fetchWalletBalances(wallet!.address),
@@ -117,7 +119,7 @@ export function ConnectedWalletCard({ bluvfiSolanaAddress }: { bluvfiSolanaAddre
           </View>
           <Pressable onPress={copy} hitSlop={6}>
             <Text style={styles.sub}>
-              {short(wallet.address)} · {copied ? 'Copied!' : 'Tap to copy'}
+              {skr.name ? `${skr.name} · ` : ''}{short(wallet.address)} · {copied ? 'Copied!' : 'Tap to copy'}
             </Text>
           </Pressable>
         </View>

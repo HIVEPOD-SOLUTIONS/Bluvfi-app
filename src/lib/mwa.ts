@@ -159,7 +159,7 @@ export interface WalletSignIn {
 }
 
 /** Pulls the 64-byte signature out of what a wallet returned: some append it to the message, some return it alone. */
-function extractSignature(signed: Uint8Array, message: Uint8Array): Uint8Array {
+export function extractSignature(signed: Uint8Array, message: Uint8Array): Uint8Array {
   if (signed.length === 64) return signed;
   if (signed.length === message.length + 64) return signed.slice(message.length);
   // Unknown layout: the signature is, by convention, the last 64 bytes.

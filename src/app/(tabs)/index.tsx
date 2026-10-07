@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { HistorySection } from '@/components/dashboard/HistorySection';
@@ -18,6 +19,9 @@ import { PriceTicker } from '@/components/dashboard/PriceTicker';
 import { CoinSheet } from '@/components/crypto/CoinSheet';
 import { MicButton, VoiceBar } from '@/components/chat/VoiceBar';
 import { RecoveryCard } from '@/components/wallet/RecoveryCard';
+import { SharOrb } from '@/components/shar/SharOrb';
+import { SharColors } from '@/constants/shar';
+import { useShar } from '@/hooks/use-shar';
 import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
@@ -80,6 +84,7 @@ export default function HomeScreen() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const { openChat, walletOpen, openWallet, closeWallet } = useChatSheet();
+  const shar = useShar().data;
   const [askText, setAskText] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [purchasesOpen, setPurchasesOpen] = useState(false);
@@ -210,6 +215,21 @@ export default function HomeScreen() {
             </Pressable>
           )}
         </View>
+
+        {/* Shar rewards: balance and rank at a glance, opens the full screen. Hidden until the first load succeeds. */}
+        {shar ? (
+          <Pressable onPress={() => router.push('/shar')} style={styles.sharCard} accessibilityRole="button" accessibilityLabel="Open Shar rewards">
+            <SharOrb size={44} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sharLabel}>SHAR · {shar.tier.name.toUpperCase()}</Text>
+              <Text style={styles.sharValue}>
+                {shar.available.toLocaleString('en-US')}
+                {shar.pending > 0 ? <Text style={styles.sharPending}>  +{shar.pending.toLocaleString('en-US')} pending</Text> : null}
+              </Text>
+            </View>
+            <Text style={styles.sharGo}>›</Text>
+          </Pressable>
+        ) : null}
 
         {/* Live crypto prices (CoinMarketCap). Hidden entirely if the server has no key. */}
         <View style={styles.ticker}>
@@ -467,6 +487,22 @@ const styles = StyleSheet.create({
     fontFamily: Type.amount.fontFamily,
     color: Colors.tx0,
   },
+  sharCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: SharColors.tint,
+    borderRadius: Radii.xl,
+    borderWidth: 1,
+    borderColor: SharColors.tintBorder,
+  },
+  sharLabel: { ...Type.label, color: Colors.tx2 },
+  sharValue: { fontFamily: 'SpaceMono_700Bold', fontSize: 18, color: Colors.tx0, marginTop: 2 },
+  sharPending: { fontFamily: 'SpaceMono_400Regular', fontSize: 12, color: SharColors.pending },
+  sharGo: { fontSize: 24, color: Colors.tx1, paddingRight: 2 },
   ticker: {
     marginTop: Spacing.md,
   },

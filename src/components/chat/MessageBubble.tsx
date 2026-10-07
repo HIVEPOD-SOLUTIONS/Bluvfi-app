@@ -1,9 +1,27 @@
 import { Linking, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import Markdown from 'react-native-markdown-display';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
+import { useChatSheet } from '@/lib/chat-context';
+
+/** The only in-app destinations the agent may link to (see the app section of the server's prompt). */
+const APP_LINKS: Record<string, string> = {
+  'bluvfi://crypto': '/crypto',
+  'bluvfi://profile': '/profile',
+  'bluvfi://home': '/',
+  'bluvfi://shar': '/shar',
+  'bluvfi://network': '/network',
+  'bluvfi://faq': '/faq',
+  'bluvfi://activity': '/activity',
+  'bluvfi://creator': '/creator',
+};
+
+/** A provider the agent found: bluvfi://provider/<uuid>. Only a real id shape is followed. */
+const PROVIDER_LINK = /^bluvfi:\/\/provider\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i;
 
 /** The user's message: a right-aligned bubble. The assistant's: plain markdown text with no bubble. */
 export function MessageBubble({ role, text }: { role: string; text: string }) {
+  const { closeChat } = useChatSheet();
   if (!text.trim()) return null;
 
   if (role === 'user') {
@@ -21,7 +39,17 @@ export function MessageBubble({ role, text }: { role: string; text: string }) {
       <Markdown
         style={markdownStyles}
         onLinkPress={(url) => {
-          Linking.openURL(url);
+          const screen = APP_LINKS[url.toLowerCase().replace(/\/+$/, '')];
+          const provider = PROVIDER_LINK.exec(url)?.[1];
+          if (screen) {
+            closeChat();
+            router.navigate(screen as never);
+          } else if (provider) {
+            closeChat();
+            router.navigate({ pathname: '/provider/[id]', params: { id: provider } } as never);
+          } else if (!url.toLowerCase().startsWith('bluvfi://')) {
+            Linking.openURL(url);
+          }
           return false;
         }}
       >

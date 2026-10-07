@@ -1,5 +1,7 @@
 import { parseUnits, type Hex } from 'viem';
 import { payEvmTransfer, type EvmWallet } from '@/lib/payments/evm-pay';
+import { announceAutoConversion, skrPayEnabled } from '@/lib/skr-pay';
+import { coverUsdcWithSkr, SwapError, type SwapSigner } from '@/lib/skr-swap';
 
 /**
  * Pays a deposit address straight from the user's Bluvfi wallet — for providers that hand back "send X COIN
@@ -59,6 +61,8 @@ export async function sendFromWallet(opts: {
   amount: string;
   evmWallet?: () => EvmWallet;
   solana?: { address: string; getProvider: () => Promise<any> };
+  /** Set false for a transfer that must never trigger an automatic SKR to USDC conversion (e.g. moving USDC that was just converted). */
+  autoSkr?: boolean;
 }): Promise<string> {
   const { rail, coin, to, amount, evmWallet, solana } = opts;
 
@@ -95,10 +99,36 @@ export async function sendFromWallet(opts: {
     tx.add(createAssociatedTokenAccountIdempotentInstruction(from, destAta, dest, mint));
     tx.add(createTransferCheckedInstruction(fromAta, mint, destAta, from, BigInt(parseUnits(amount, 6)), 6));
   }
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
+  let { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   tx.feePayer = from;
   const provider = await solana.getProvider();
+  // Paying USDC while short, with "use my SKR" on: convert just the missing amount from SKR first. (The transfer above was built
+  // before this, but it only names accounts and an amount, so it is still valid once the USDC has arrived.)
+  if (rail.mint === SOLANA_MINTS.USDC && opts.autoSkr !== false && skrPayEnabled()) {
+    const { getAssociatedTokenAddress } = require('@solana/spl-token') as typeof import('@solana/spl-token');
+    const fromAta = await getAssociatedTokenAddress(new PublicKey(rail.mint), from);
+    const have = await conn.getTokenAccountBalance(fromAta).then((b) => BigInt(b.value.amount)).catch(() => 0n);
+    try {
+      const converted = await coverUsdcWithSkr({
+        enabled: true,
+        user: solana.address,
+        balanceMicro: have,
+        requiredMicro: BigInt(parseUnits(amount, 6)),
+        provider: provider as unknown as SwapSigner,
+        connection: conn,
+      });
+      if (converted) {
+        announceAutoConversion(converted);
+        // The conversion took a few seconds: use a fresh blockhash so the payment can't expire while it waited.
+        ({ blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash());
+        tx.recentBlockhash = blockhash;
+      }
+    } catch (e) {
+      if (e instanceof SwapError) throw new Error(`Couldn’t convert your SKR to cover this payment. ${e.message}`);
+      throw e;
+    }
+  }
   const { signature } = await provider.request({ method: 'signAndSendTransaction', params: { transaction: tx, connection: conn } });
   await conn.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
   return signature;

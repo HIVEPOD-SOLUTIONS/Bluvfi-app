@@ -1,8 +1,8 @@
-import { ReactNode, useEffect, useMemo, useRef } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
 import { BackHandler, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import GorhomBottomSheet, { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetView } from '@gorhom/bottom-sheet';
+import GorhomBottomSheet, { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 
 interface BottomSheetProps {
@@ -15,6 +15,12 @@ interface BottomSheetProps {
   scrollable?: boolean;
 }
 
+/** Constant, so the sheet library is never handed a new object on every render of the screen that holds it. */
+const DEFAULT_SNAP_POINTS: (string | number)[] = ['60%'];
+const SHEET_STYLE = { borderTopLeftRadius: Radii.xxxl, borderTopRightRadius: Radii.xxxl, overflow: 'hidden' } as const;
+const SHEET_BACKGROUND = { backgroundColor: Colors.bg1 };
+const HANDLE_INDICATOR = { backgroundColor: 'rgba(167,167,154,0.2)', width: 40 };
+
 function CloseIcon() {
   return (
     <Svg width={14} height={14} viewBox="0 0 16 16" fill="none">
@@ -26,7 +32,13 @@ function CloseIcon() {
 export function BottomSheet({ open, onClose, title, children, snapPoints: snapPointsProp, scrollable }: BottomSheetProps) {
   const ref = useRef<GorhomBottomSheet>(null);
   const insets = useSafeAreaInsets();
-  const snapPoints = useMemo(() => snapPointsProp ?? ['60%'], [snapPointsProp]);
+  // Most screens pass snapPoints={['85%']} inline, a new array each render: key on the VALUES so the library sees the same array until they change.
+  const snapKey = JSON.stringify(snapPointsProp ?? DEFAULT_SNAP_POINTS);
+  const snapPoints = useMemo(() => JSON.parse(snapKey) as (string | number)[], [snapKey]);
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />,
+    [],
+  );
 
   useEffect(() => {
     if (open) ref.current?.expand();
@@ -77,12 +89,10 @@ export function BottomSheet({ open, onClose, title, children, snapPoints: snapPo
       enablePanDownToClose
       onClose={onClose}
       keyboardBlurBehavior="restore"
-      backgroundStyle={{ backgroundColor: Colors.bg1 }}
-      handleIndicatorStyle={{ backgroundColor: 'rgba(167,167,154,0.2)', width: 40 }}
-      style={{ borderTopLeftRadius: Radii.xxxl, borderTopRightRadius: Radii.xxxl, overflow: 'hidden' }}
-      backdropComponent={(props) => (
-        <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
-      )}
+      backgroundStyle={SHEET_BACKGROUND}
+      handleIndicatorStyle={HANDLE_INDICATOR}
+      style={SHEET_STYLE}
+      backdropComponent={renderBackdrop}
     >
       {scrollable ? (
         <View style={{ flex: 1 }}>

@@ -10,6 +10,8 @@ import { API_BASE_URL } from '@/lib/api';
 import type { Payment } from '@/lib/api-types';
 import { useStocksPortfolio } from '@/hooks/use-stocks';
 import { useAuth } from '@/lib/auth-context';
+import { isSeekerDevice } from '@/lib/seeker';
+import { useConnectedWallet } from '@/lib/wallet-connection';
 
 type ChatApi = ReturnType<typeof useChat>;
 
@@ -56,7 +58,8 @@ export function useChatSheet() {
  * name, wallet addresses, balances, portfolio value and purchase count.
  */
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { getAccessToken, evmAddress, solanaAddress, firstName } = useAuth();
+  const { getAccessToken, evmAddress, solanaAddress, firstName, isWalletOnly } = useAuth();
+  const { wallet: connectedWallet } = useConnectedWallet();
   const { data: balances } = useBalances(evmAddress, solanaAddress);
   const xrpl = useXrplWallet();
   const xrp = useXrpBalance(!!xrpl.address);
@@ -87,6 +90,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     totalBillsDueUsd: 0,
     portfolioValueUsd: stocksPortfolio?.totalUsd,
     billCount: billPayments?.payments.filter((p) => p.status === 'completed').length,
+    // Lets the server describe this app (screens, Banking coming soon, connected wallet) instead of the website or the older
+    // WebView app. The wallet is only a name and an address: nothing the agent could sign with.
+    client: 'expo-android',
+    connectedWallet: connectedWallet ? { name: connectedWallet.name, address: connectedWallet.address } : undefined,
+    walletOnly: isWalletOnly,
+    seeker: isSeekerDevice(),
     appVersion: Application.nativeApplicationVersion
       ? `${Application.nativeApplicationVersion} (${Application.nativeBuildVersion})`
       : undefined,

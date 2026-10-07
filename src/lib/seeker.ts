@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { API_BASE_URL } from '@/lib/api';
 
 /**
  * Solana Seeker recognition, two ways:
@@ -30,10 +31,58 @@ const SGT_GROUP = 'GT22s89nU4iWFkNXj1Bw6uYhJJWDRPpShHt4Bk8f99Te';
 const TOKEN_2022 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 
 const ALCHEMY_KEY = process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ?? '';
-const RPC = ALCHEMY_KEY ? `https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}` : 'https://api.mainnet-beta.solana.com';
+const SOLANA_RPC_URL = process.env.EXPO_PUBLIC_SOLANA_RPC_URL ?? '';
+// A dedicated endpoint (Helius) when configured: .skr lookups use getProgramAccounts, which the Alchemy free tier refuses.
+const RPC = SOLANA_RPC_URL || (ALCHEMY_KEY ? `https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}` : 'https://api.mainnet-beta.solana.com');
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(RPC, {
+/**
+ * Reads go through Bluvfi's own endpoint first (POST /api/solana/rpc), which holds the RPC key on the server so none has to
+ * ship inside the APK. The auth provider hands over the signed-in user's token; the endpoint is limited to the few calls
+ * these Seeker features make. If it isn't deployed or configured yet (404/501/502/503) or can't be reached, the call
+ * falls back to a direct endpoint for a few minutes, so the features keep working while the backend catches up.
+ */
+let tokenProvider: (() => Promise<string | null>) | null = null;
+export function setSolanaRpcAuth(provider: (() => Promise<string | null>) | null) {
+  tokenProvider = provider;
+}
+let proxyDownUntil = 0;
+const PROXY_RETRY_MS = 5 * 60_000;
+
+/** The proxy's answer, or undefined when it can't be used and the caller should go direct. Real refusals throw. */
+async function viaProxy<T>(method: string, params: unknown[]): Promise<{ value: T } | undefined> {
+  if (!tokenProvider || Date.now() < proxyDownUntil) return undefined;
+  let res: Response;
+  try {
+    const token = await tokenProvider();
+    if (!token) return undefined;
+    res = await fetch(`${API_BASE_URL}/api/solana/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+  } catch {
+    proxyDownUntil = Date.now() + PROXY_RETRY_MS;
+    return undefined;
+  }
+  if ([404, 501, 502, 503].includes(res.status)) {
+    proxyDownUntil = Date.now() + PROXY_RETRY_MS;
+    return undefined;
+  }
+  const json = (await res.json().catch(() => null)) as { result?: T; error?: unknown } | null;
+  if (!res.ok || !json) {
+    const reason = typeof (json as { error?: unknown } | null)?.error === 'string' ? ((json as { error: string }).error) : `RPC proxy failed (${res.status})`;
+    throw new Error(reason);
+  }
+  if (json.error) throw new Error(typeof json.error === 'object' && json.error && 'message' in json.error ? String((json.error as { message: unknown }).message) : 'RPC error');
+  return { value: json.result as T };
+}
+
+export async function rpc<T>(method: string, params: unknown[], url?: string): Promise<T> {
+  if (url === undefined) {
+    const proxied = await viaProxy<T>(method, params);
+    if (proxied) return proxied.value;
+  }
+  const res = await fetch(url ?? RPC, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),

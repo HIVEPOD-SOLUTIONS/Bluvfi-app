@@ -1,6 +1,10 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
+import { useChatSheet } from '@/lib/chat-context';
 import { PayFromWallet } from './PayFromWallet';
+import { CoinLogo } from '@/components/crypto/CoinLogo';
+import { formatPrice } from '@/components/crypto/CoinSheet';
 
 /**
  * Renders an AI tool's `output-available` result in the chat. The tools bluvfi's assistant most often
@@ -136,6 +140,12 @@ export function ToolResultCard({ toolName, output }: { toolName: string; output:
     );
   }
 
+  const network = renderNetworkCard(toolName, data);
+  if (network) return network;
+
+  const crypto = renderCryptoCard(toolName, data);
+  if (crypto) return crypto;
+
   const invest = renderInvestCard(toolName, data);
   if (invest) return invest;
 
@@ -262,13 +272,84 @@ function OrderStatusCard({ data }: { data: any }) {
   );
 }
 
+/** Live-price tool results: a list of coins with logos and 24h change, or the market summary / conversion. */
+function renderCryptoCard(toolName: string, data: any) {
+  const coinRows = (coins: any[]): ListRow[] =>
+    coins.map((c) => {
+      const change = c.change24hPct;
+      return {
+        key: String(c.id ?? c.symbol),
+        logo: { id: c.id ?? undefined, symbol: String(c.symbol) },
+        title: String(c.symbol),
+        sub: c.name,
+        right: typeof c.price === 'number' ? formatPrice(c.price) : undefined,
+        rightSub: typeof change === 'number' ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : undefined,
+        rightSubColor: typeof change === 'number' ? (change >= 0 ? Colors.sage : Colors.redAlert) : undefined,
+      };
+    });
+  const asOf = (d: any) => (d?.asOf ? `Live · ${new Date(d.asOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : undefined);
+
+  if (toolName === 'get_crypto_prices' && Array.isArray(data?.coins)) {
+    return <ListCard title={asOf(data) ?? 'Prices'} rows={coinRows(data.coins)} />;
+  }
+  if (toolName === 'get_top_movers' && Array.isArray(data?.movers)) {
+    return <ListCard title={`Top ${data.direction ?? 'movers'} · ${data.timeframe ?? '24h'}`} rows={coinRows(data.movers)} />;
+  }
+  if (toolName === 'get_trending_crypto' && Array.isArray(data?.trending)) {
+    return <ListCard title={`Trending · ${data.timePeriod ?? '24h'}`} rows={coinRows(data.trending)} />;
+  }
+  if (toolName === 'get_crypto_market_overview' && data?.global) {
+    const g = data.global;
+    const big = (n: number | null | undefined) => (n == null ? '—' : n >= 1e12 ? `$${(n / 1e12).toFixed(2)}T` : `$${(n / 1e9).toFixed(1)}B`);
+    return (
+      <>
+        <View style={styles.card}>
+          <Text style={styles.label}>{asOf(data) ?? 'Crypto market'}</Text>
+          {[
+            ['Market cap', big(g.totalMarketCap)],
+            ['24h volume', big(g.totalVolume24h)],
+            ['BTC dominance', g.btcDominancePct != null ? `${g.btcDominancePct}%` : '—'],
+            ['ETH dominance', g.ethDominancePct != null ? `${g.ethDominancePct}%` : '—'],
+          ].map(([k, v]) => (
+            <View key={k} style={styles.kvRow}>
+              <Text style={styles.key}>{k}</Text>
+              <Text style={styles.value}>{v}</Text>
+            </View>
+          ))}
+        </View>
+        {Array.isArray(data.topByMarketCap) && data.topByMarketCap.length > 0 ? (
+          <ListCard title="Top by market cap" rows={coinRows(data.topByMarketCap)} />
+        ) : null}
+      </>
+    );
+  }
+  if (toolName === 'convert_crypto' && data?.results && typeof data.results === 'object') {
+    return (
+      <ListCard
+        title={`${data.amount} ${data.from}`}
+        rows={Object.entries<any>(data.results).map(([cur, r]) => ({
+          key: cur,
+          title: cur.toUpperCase(),
+          sub: r?.ratePerUnit != null ? `1 ${data.from} = ${r.ratePerUnit}` : undefined,
+          right: r?.total != null ? Number(r.total).toLocaleString('en-US', { maximumFractionDigits: 6 }) : undefined,
+        }))}
+      />
+    );
+  }
+  return null;
+}
+
 interface ListRow {
   key: string;
+  /** A coin logo shown before the title. */
+  logo?: { id?: number | string; symbol: string };
   title: string;
   sub?: string;
   right?: string;
   rightSub?: string;
   rightSubColor?: string;
+  /** Makes the row tappable (used to open a provider from the chat). */
+  onPress?: () => void;
 }
 
 function ListCard({ title, rows, emptyText }: { title: string; rows: ListRow[]; emptyText?: string }) {
@@ -277,7 +358,8 @@ function ListCard({ title, rows, emptyText }: { title: string; rows: ListRow[]; 
       <Text style={[styles.label, { padding: Spacing.lg, paddingBottom: Spacing.sm, marginBottom: 0 }]}>{title}</Text>
       {rows.length === 0 && emptyText ? <Text style={[styles.sub, { padding: Spacing.lg, paddingTop: 0 }]}>{emptyText}</Text> : null}
       {rows.map((r) => (
-        <View key={r.key} style={styles.listRow}>
+        <Pressable key={r.key} onPress={r.onPress} disabled={!r.onPress} style={styles.listRow}>
+          {r.logo ? <CoinLogo id={r.logo.id} symbol={r.logo.symbol} size={32} /> : null}
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle} numberOfLines={1}>
               {r.title}
@@ -294,8 +376,191 @@ function ListCard({ title, rows, emptyText }: { title: string; rows: ListRow[]; 
               {r.rightSub ? <Text style={[styles.tinyText, r.rightSubColor ? { color: r.rightSubColor } : null]}>{r.rightSub}</Text> : null}
             </View>
           ) : null}
-        </View>
+        </Pressable>
       ))}
+    </View>
+  );
+}
+
+// ─── Shar and the open provider network ───────────────────────────────────────
+
+const fmtN = (n: unknown) => Number(n ?? 0).toLocaleString('en-US');
+
+function renderNetworkCard(toolName: string, data: any) {
+  if (toolName === 'get_my_shar' && typeof data?.sharAvailable === 'number') return <SharCard data={data} />;
+  if (toolName === 'search_network_providers' && Array.isArray(data?.providers)) return <ProvidersCard data={data} />;
+  if (toolName === 'get_my_network_account' && data?.commission) return <NetworkAccountCard data={data} />;
+  if (toolName === 'get_provider_details' && typeof data?.name === 'string' && Array.isArray(data?.inputs)) return <ProviderDetailCard data={data} />;
+  if (toolName === 'get_my_activity' && Array.isArray(data?.entries)) return <ActivityCard data={data} />;
+  return null;
+}
+
+function useOpenScreen() {
+  const { closeChat } = useChatSheet();
+  return (target: string | { pathname: string; params: Record<string, string> }) => {
+    closeChat();
+    router.navigate(target as never);
+  };
+}
+
+function SharCard({ data }: { data: any }) {
+  const open = useOpenScreen();
+  const claim = data.claimInProgress;
+  return (
+    <View style={styles.card}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Your Shar</Text>
+        {data.rank?.name ? (
+          <View style={styles.tag}>
+            <Text style={styles.tagText}>{data.rank.name}</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.kvRow}>
+        <Text style={styles.key}>Available</Text>
+        <Text style={[styles.value, styles.strong]}>{fmtN(data.sharAvailable)} Shar</Text>
+      </View>
+      {Number(data.sharPending) > 0 ? (
+        <View style={styles.kvRow}>
+          <Text style={styles.key}>Pending</Text>
+          <Text style={styles.value}>{fmtN(data.sharPending)} Shar</Text>
+        </View>
+      ) : null}
+      <View style={styles.kvRow}>
+        <Text style={styles.key}>Worth</Text>
+        <Text style={styles.value}>≈ {data.worthSkrIfClaimedNow} SKR</Text>
+      </View>
+      <View style={styles.kvRow}>
+        <Text style={styles.key}>This week</Text>
+        <Text style={styles.value}>{fmtN(data.sharThisWeek)} Shar</Text>
+      </View>
+      <Text style={styles.sub}>
+        {claim
+          ? `Claim in progress: ${fmtN(claim.shar)} Shar → ${claim.skr} SKR (${claim.status}).`
+          : data.canClaimNow
+            ? 'You can claim your Shar as SKR now.'
+            : `Claiming opens at ${fmtN(data.minimumClaimShar)} Shar.`}
+      </Text>
+      {data.referral?.code ? (
+        <Text style={styles.sub}>
+          Referral code <Text style={styles.strong}>{data.referral.code}</Text> · {fmtN(data.referral.friendsJoined)} {data.referral.friendsJoined === 1 ? 'friend' : 'friends'}
+        </Text>
+      ) : null}
+      <Pressable onPress={() => open('/shar')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+        <Text style={styles.link}>Open Shar</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ProvidersCard({ data }: { data: any }) {
+  const open = useOpenScreen();
+  return (
+    <View>
+      <ListCard
+        title="Open network"
+        emptyText="No providers match that. Try different words."
+        rows={data.providers.map((p: any) => ({
+          key: String(p.id),
+          title: `${p.featured ? '★ ' : ''}${p.name}`,
+          sub: `${p.category} · ${fmtN(p.uses)} ${p.uses === 1 ? 'use' : 'uses'}${p.needsSetupFirst ? ' · setup first' : ''}`,
+          right: p.pricePerCallUsdc === 'free' ? 'Free' : `$${p.pricePerCallUsdc}`,
+          rightSub: p.pricePerCallUsdc === 'free' ? undefined : 'per call',
+          onPress: () => open({ pathname: '/provider/[id]', params: { id: String(p.id) } }),
+        }))}
+      />
+      <Pressable onPress={() => open('/network')} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+        <Text style={styles.link}>{data.count > data.providers.length ? `See all ${data.count} in the network` : 'Open the network'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function NetworkAccountCard({ data }: { data: any }) {
+  const open = useOpenScreen();
+  const c = data.commission;
+  const providers: any[] = Array.isArray(data.providers) ? data.providers : [];
+  return (
+    <View>
+      <ListCard
+        title="Your network account"
+        rows={[
+          { key: 'credits', title: 'Credits', sub: 'For paid provider calls', right: `$${data.creditsUsd}` },
+          {
+            key: 'commission',
+            title: 'Commission',
+            sub: c.withdrawalInProgress ? `Withdrawal in progress ($${c.withdrawalInProgress.usd})` : `Earned all time: $${c.earnedAllTimeUsd}`,
+            right: `$${c.availableUsd}`,
+            rightSub: c.canWithdrawNow ? 'can withdraw' : `from $${c.minimumWithdrawUsd}`,
+          },
+          ...providers.map((p) => ({
+            key: String(p.id),
+            title: p.name,
+            sub: p.teamQuestion ? 'The team asked: ' + p.teamQuestion : p.declinedBecause ? 'Not accepted: ' + p.declinedBecause : `${p.status} · ${fmtN(p.uses)} ${p.uses === 1 ? 'use' : 'uses'}`,
+            right: p.pricePerCallUsdc === 'free' ? 'Free' : `$${p.pricePerCallUsdc}`,
+            rightSub: p.teamQuestion ? 'answer it' : p.declinedBecause ? 'fix & resend' : undefined,
+            rightSubColor: p.teamQuestion || p.declinedBecause ? Colors.amber : undefined,
+            onPress: () => open({ pathname: '/provider/[id]', params: { id: String(p.id) } }),
+          })),
+        ]}
+      />
+      <Pressable onPress={() => open('/network')} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+        <Text style={styles.link}>Open the network</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** One provider in full: what it asks for, and what to do before using it. */
+function ProviderDetailCard({ data }: { data: any }) {
+  const open = useOpenScreen();
+  const inputs: any[] = Array.isArray(data.inputs) ? data.inputs : [];
+  const steps: string[] = Array.isArray(data.stepsBeforeUse) ? data.stepsBeforeUse : [];
+  const price = data.pricePerCallUsdc === 'free' ? 'Free' : '$' + data.pricePerCallUsdc + ' per call';
+  return (
+    <View>
+      <ListCard
+        title={data.name}
+        rows={[
+          { key: 'about', title: price, sub: data.category + ' · ' + data.state },
+          ...inputs.map((f) => ({
+            key: 'in-' + f.name,
+            title: f.label,
+            sub: [f.type, f.required ? 'required' : 'optional', f.options ? f.options.join('/') : null].filter(Boolean).join(' · '),
+          })),
+          ...steps.map((t, i) => ({ key: 'step-' + i, title: 'Step ' + (i + 1), sub: t })),
+          ...(data.ownerTerms ? [{ key: 'terms', title: 'Owner\'s terms', sub: data.ownerTerms.youHaveAgreed === true ? 'You agreed' : data.ownerTerms.youHaveAgreed === false ? 'Agree on the provider\'s page before using it' : 'Yours' }] : []),
+        ]}
+      />
+      <Pressable onPress={() => open({ pathname: '/provider/[id]', params: { id: String(data.id) } })} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+        <Text style={styles.link}>{data.canUseRightAway ? 'Open and try it' : 'Open this provider'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** The user's recent history, newest first. */
+function ActivityCard({ data }: { data: any }) {
+  const open = useOpenScreen();
+  const entries: any[] = Array.isArray(data.entries) ? data.entries : [];
+  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return (
+    <View>
+      <ListCard
+        title="Your activity"
+        emptyText="Nothing yet. Spend, earn or add credits and it shows up here."
+        rows={entries.map((e, i) => ({
+          key: String(i) + e.when,
+          title: e.what,
+          sub: [day(e.when), e.detail].filter(Boolean).join(' · '),
+          right: e.amount,
+          rightSub: e.state === 'done' ? undefined : e.state,
+          rightSubColor: e.state === 'declined' ? Colors.tx2 : Colors.amber,
+        }))}
+      />
+      <Pressable onPress={() => open('/activity')} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+        <Text style={styles.link}>{data.hasMore ? 'See all activity' : 'Open Activity'}</Text>
+      </Pressable>
     </View>
   );
 }
