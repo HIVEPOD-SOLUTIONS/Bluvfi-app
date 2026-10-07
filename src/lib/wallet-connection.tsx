@@ -67,7 +67,12 @@ export function useConnectedWallet(): WalletConnectionValue {
   return ctx;
 }
 
-export function WalletConnectionProvider({ children }: { children: ReactNode }) {
+/**
+ * Always mounted (never conditionally), so useConnectedWallet can't throw on a screen that renders while the user is signed out (after
+ * logout, a deep link, or a restored route). `userId` is null when signed out: the in-memory connection is dropped so the next person on
+ * this phone starts clean, and the saved one is restored when someone signs in.
+ */
+export function WalletConnectionProvider({ children, userId }: { children: ReactNode; userId?: string | null }) {
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<WalletConnectionValue['error']>(null);
@@ -85,8 +90,14 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
     }
   }, []);
 
-  // Restore the last connection (no wallet prompt: it's only used when the user next approves something).
+  // Restore the last connection when someone signs in (no wallet prompt: it's only used when the user next approves something).
   useEffect(() => {
+    if (!userId) {
+      setWallet(null);
+      setSource('bluvfi');
+      setError(null);
+      return;
+    }
     if (!mwaAvailable) return;
     SecureStore.getItemAsync(STORAGE_KEY)
       .then((raw) => {
@@ -99,7 +110,7 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
         }
       })
       .catch(() => {});
-  }, []);
+  }, [userId]);
 
   const connect = useCallback(async () => {
     if (!mwaAvailable || connecting) return;

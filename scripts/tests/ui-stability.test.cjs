@@ -42,4 +42,12 @@ check("every sheet passes snapPoints as literal values or an UPPER_CASE constant
 const layout = read("src/app/(tabs)/_layout.tsx");
 check("the tab layout still hands the navigator constant options and a bridge component (the earlier loop fix)", layout.includes("OpenChatBridge"));
 
+// signed-out safety: the crash was "useConnectedWallet must be used within a WalletConnectionProvider" on a tab screen that rendered while signed out
+const rootLayout = read("src/app/_layout.tsx");
+check("signed-in screens sit behind Stack.Protected (Expo Router's guard), not a conditional list of Stack.Screen entries", rootLayout.includes("<Stack.Protected guard={isAuthenticated}>") && rootLayout.includes("<Stack.Protected guard={!isAuthenticated}>") && !/isAuthenticated\s*\n\s*\? \[/.test(rootLayout));
+check("the wallet provider is always mounted (never behind isAuthenticated) and told who is signed in", /return <WalletConnectionProvider userId=\{isAuthenticated \? userId : null\}>/.test(rootLayout) && !/isAuthenticated \? <WalletConnectionProvider/.test(rootLayout));
+const wc = read("src/lib/wallet-connection.tsx");
+check("the provider drops the in-memory connection when signed out and restores the saved one at sign-in", wc.includes("userId }: { children: ReactNode; userId?: string | null }") && /if \(!userId\) \{\s*setWallet\(null\);/.test(wc) && wc.includes("}, [userId]);"));
+check("every screen is declared exactly once in the root stack (Expo Router rejects duplicates)", (() => { const names = [...rootLayout.matchAll(/<Stack\.Screen name="([^"]+)"/g)].map((m) => m[1]); return names.length === new Set(names).size; })());
+
 finish();

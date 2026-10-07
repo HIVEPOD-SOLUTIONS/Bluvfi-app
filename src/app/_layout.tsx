@@ -117,34 +117,34 @@ function AuthGate() {
     );
   }
 
-  // Protected-routes pattern: which Stack.Screen entries exist depends on
-  // auth state, so an unauthenticated user can never navigate into (tabs).
+  // Protected routes (Expo Router's Stack.Protected): a signed-out user can't reach (tabs) by any path, deep links included, and when the
+  // guard flips to false (logout) their history entries are removed. The guest group comes right after the signed-in one, so a signed-out
+  // user lands on the onboarding carousel.
   // Mirrors bluvfi web's app/page.tsx: always shows the onboarding carousel
   // first when logged out (no "seen before" persistence there either), with
   // Skip/Get started pushing into the login screen.
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg0 } }}>
-      {isAuthenticated
-        ? [
-            <Stack.Screen key="tabs" name="(tabs)" />,
-            <Stack.Screen key="provider" name="provider/[id]" />,
-            <Stack.Screen key="provider-new" name="provider/new" />,
-            <Stack.Screen key="provider-edit" name="provider/edit/[id]" />,
-            <Stack.Screen key="creator" name="creator" />,
-            <Stack.Screen key="ref" name="ref/[code]" />,
-            <Stack.Screen key="activity" name="activity" />,
-            <Stack.Screen key="faq" name="faq" />,
-            <Stack.Screen key="oauth-callback" name="oauth-callback" />,
-          ]
-        : [
-            <Stack.Screen key="onboarding" name="onboarding" />,
-            <Stack.Screen key="login" name="login" />,
-            <Stack.Screen key="ref" name="ref/[code]" />,
-            <Stack.Screen key="oauth-callback" name="oauth-callback" />,
-          ]}
+      <Stack.Protected guard={isAuthenticated}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="provider/[id]" />
+        <Stack.Screen name="provider/new" />
+        <Stack.Screen name="provider/edit/[id]" />
+        <Stack.Screen name="creator" />
+        <Stack.Screen name="activity" />
+        <Stack.Screen name="faq" />
+      </Stack.Protected>
+      <Stack.Protected guard={!isAuthenticated}>
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="login" />
+      </Stack.Protected>
+      {/* Reachable signed in or out: a friend's referral link, and the sign-in redirect. */}
+      <Stack.Screen name="ref/[code]" />
+      <Stack.Screen name="oauth-callback" />
     </Stack>
   );
 
-  // The connected-wallet state is shared by every signed-in screen (the tabs and the provider page alike), and starts fresh after logout.
-  return isAuthenticated ? <WalletConnectionProvider>{stack}</WalletConnectionProvider> : stack;
+  // The connected-wallet state is shared by every signed-in screen (the tabs and the provider page alike). The provider is always mounted so a
+  // hook can never run outside it; it drops the connection when signed out (userId null) and restores the saved one at sign-in.
+  return <WalletConnectionProvider userId={isAuthenticated ? userId : null}>{stack}</WalletConnectionProvider>;
 }
