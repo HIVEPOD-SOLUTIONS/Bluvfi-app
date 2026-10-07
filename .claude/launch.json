@@ -4,6 +4,18 @@
     {
       "name": "bluvfi-dev",
       "url": "http://localhost:3000"
+    },
+    {
+      "name": "expo-metro",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "expo",
+        "start",
+        "--dev-client",
+        "--port",
+        "8081"
+      ],
+      "port": 8081
     }
   ]
 }
