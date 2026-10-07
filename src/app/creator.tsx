@@ -162,8 +162,9 @@ export default function CreatorScreen() {
                           <Text style={styles.termItemBody}>{t.body}</Text>
                         </View>
                       ))}
+                      <Text style={styles.hint}>A plain-language summary of how the network works. It doesn’t replace Bluvfi’s Terms of Service, which apply in full.</Text>
                       <Text style={styles.link} onPress={() => Linking.openURL(PROVIDER_TERMS_URL).catch(() => {})}>
-                        Read the full Terms of Service
+                        Read Bluvfi’s Terms of Service
                       </Text>
                     </View>
                   ) : null}

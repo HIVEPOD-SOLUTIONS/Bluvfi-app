@@ -134,3 +134,8 @@ Real-device testing: _to be filled in before submission._
 - SKR claims and commission withdrawals are **requests the Bluvfi team reviews and sends**; they are not instant, and the app says so.
 - In the app, Banking is "Coming soon"; stocks are traded through Backpack, and buying xStocks or gold is not in the app.
 - The provider terms in the app are a plain-language summary, and have not had a legal review.
+
+## License
+
+Source available, all rights reserved. Anyone may view, build and run this code to evaluate it (judges and reviewers included); nothing else is granted without written
+permission. See `LICENSE`. Third-party packages keep their own licences.

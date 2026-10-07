@@ -48,4 +48,13 @@ check("every file or folder the README points to exists", paths.length >= 12 && 
 const globbed = ["src/lib/skr-*.ts"].every((g) => fs.readdirSync(path.join(root, "src/lib")).some((f) => /^skr-.*\.ts$/.test(f)));
 check("the SKR files the README describes exist", globbed);
 
+// ── licence and legal wording
+const licence = read("LICENSE");
+check("the LICENSE is the project's own, not Expo's starter MIT file", !/650 Industries|aka Expo/i.test(licence) && /All rights reserved/i.test(licence) && /Bluvfi/.test(licence));
+check("it lets judges and reviewers view, build and run the code to evaluate it, and grants nothing else", /Clock In/.test(licence) && /evaluating/i.test(licence) && /No other rights are granted/i.test(licence));
+check("package.json and the README point to it", pkg.license === "SEE LICENSE IN LICENSE" && /## License/.test(readme) && readme.includes("`LICENSE`"));
+const creatorScreen = read("src/app/creator.tsx");
+check("the creator sign-up calls the provider terms a plain-language summary that doesn't replace the Terms of Service, and doesn't promise a 'full' document", creatorScreen.includes("A plain-language summary of how the network works. It doesn’t replace Bluvfi’s Terms of Service, which apply in full.") && creatorScreen.includes("Read Bluvfi’s Terms of Service") && !creatorScreen.includes("Read the full Terms of Service"));
+check("the app never describes the provider terms as legally reviewed, compliant or approved", !/legally (reviewed|approved|compliant)|lawyer[- ](reviewed|approved)|legal review(ed)? (complete|done)|fully compliant/i.test([creatorScreen, read("src/constants/provider-terms.ts").replace(/Have the wording reviewed before launch\./, ""), read("src/lib/faq.ts")].join("\n")));
+
 finish();
