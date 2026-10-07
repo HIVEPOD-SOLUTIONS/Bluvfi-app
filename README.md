@@ -75,7 +75,9 @@ On a machine with limited memory the native build can run out of RAM; `plugins/w
 ### Build a release APK
 
 The release build is signed with your own keystore when one is configured, and with the debug key otherwise (so a plain clone still builds).
-Put these in your user-level `~/.gradle/gradle.properties` (never in the repo):
+On Windows, `powershell -ExecutionPolicy Bypass -File scripts\setup-release-signing.ps1` does this for you: it copies the keystore outside the repo, asks for the
+alias and passwords (masked), checks them with `keytool`, and writes them to your user-level `~/.gradle/gradle.properties`. Or put these there yourself
+(never in the repo):
 
 ```properties
 BLUVFI_STORE_FILE=C:/path/to/your-release.keystore
