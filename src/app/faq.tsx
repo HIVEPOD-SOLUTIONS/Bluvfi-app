@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CreatorOnly } from '@/components/shar/CreatorOnly';
 import { LayoutAnimation, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +14,14 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 
 /** "Frequently asked questions": a plain page of questions that open in place, any number at once. Answers use the live rules. */
 export default function FaqScreen() {
+  return (
+    <CreatorOnly>
+      <FaqScreenContent />
+    </CreatorOnly>
+  );
+}
+
+function FaqScreenContent() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ open?: string; section?: string }>();
   const shar = useShar();

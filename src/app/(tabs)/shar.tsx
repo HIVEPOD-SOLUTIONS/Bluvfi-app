@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { CreatorOnly } from '@/components/shar/CreatorOnly';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -52,6 +53,14 @@ function ChevronRight() {
 }
 
 export default function SharScreen() {
+  return (
+    <CreatorOnly>
+      <SharScreenContent />
+    </CreatorOnly>
+  );
+}
+
+function SharScreenContent() {
   const insets = useSafeAreaInsets();
   const summary = useShar();
   const board = useSharLeaderboard();

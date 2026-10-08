@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CreatorOnly } from '@/components/shar/CreatorOnly';
 import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +24,14 @@ const TONE: Record<Tone, string> = { positive: Colors.sage, negative: Colors.tx0
 
 /** Everything that moved, newest first: Shar, credits and commission in one list. */
 export default function ActivityScreen() {
+  return (
+    <CreatorOnly>
+      <ActivityScreenContent />
+    </CreatorOnly>
+  );
+}
+
+function ActivityScreenContent() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ source?: string }>();
   const initial = Array.isArray(params.source) ? params.source[0] : params.source;

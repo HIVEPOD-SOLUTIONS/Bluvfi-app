@@ -2,6 +2,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useChatSheet } from '@/lib/chat-context';
+import { useIsCreator } from '@/hooks/use-shar';
 import { PayFromWallet } from './PayFromWallet';
 import { CoinLogo } from '@/components/crypto/CoinLogo';
 import { formatPrice } from '@/components/crypto/CoinSheet';
@@ -405,6 +406,7 @@ function useOpenScreen() {
 
 function SharCard({ data }: { data: any }) {
   const open = useOpenScreen();
+  const isCreator = useIsCreator();
   const claim = data.claimInProgress;
   return (
     <View style={styles.card}>
@@ -446,9 +448,11 @@ function SharCard({ data }: { data: any }) {
           Referral code <Text style={styles.strong}>{data.referral.code}</Text> · {fmtN(data.referral.friendsJoined)} {data.referral.friendsJoined === 1 ? 'friend' : 'friends'}
         </Text>
       ) : null}
-      <Pressable onPress={() => open('/shar')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
-        <Text style={styles.link}>Open Shar</Text>
-      </Pressable>
+      {isCreator ? (
+        <Pressable onPress={() => open('/shar')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+          <Text style={styles.link}>Open Shar</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -542,6 +546,7 @@ function ProviderDetailCard({ data }: { data: any }) {
 /** The user's recent history, newest first. */
 function ActivityCard({ data }: { data: any }) {
   const open = useOpenScreen();
+  const isCreator = useIsCreator();
   const entries: any[] = Array.isArray(data.entries) ? data.entries : [];
   const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   return (
@@ -558,9 +563,11 @@ function ActivityCard({ data }: { data: any }) {
           rightSubColor: e.state === 'declined' ? Colors.tx2 : Colors.amber,
         }))}
       />
-      <Pressable onPress={() => open('/activity')} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
-        <Text style={styles.link}>{data.hasMore ? 'See all activity' : 'Open Activity'}</Text>
-      </Pressable>
+      {isCreator ? (
+        <Pressable onPress={() => open('/activity')} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+          <Text style={styles.link}>{data.hasMore ? 'See all activity' : 'Open Activity'}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

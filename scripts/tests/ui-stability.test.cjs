@@ -6,7 +6,7 @@
  */
 const fs = require("fs");
 const path = require("path");
-const { reporter } = require("./_harness.cjs");
+const { makeLoader, reporter } = require("./_harness.cjs");
 const { check, finish } = reporter();
 
 const root = path.join(__dirname, "../..");
@@ -69,6 +69,13 @@ const iActivity = profile.indexOf("Open your activity");
 const iFaq = profile.indexOf("Help and frequently asked questions");
 check("Shar rewards, Activity and Help & FAQ rows in the profile sit inside an isCreator guard", iCreator > -1 && iCreator < iShar && profile.indexOf("{isCreator ? (", iShar) > iShar && profile.indexOf("{isCreator ? (", iShar) < iActivity && iActivity < iFaq);
 check("the Shar card on Home shows only for creators; useIsCreator is false until the server says so", read("src/app/(tabs)/index.tsx").includes("shar && isCreator") && sharHooks.includes("useCreator().data?.creator != null"));
+const co = makeLoader({})("src/lib/creator-only.ts");
+check("creator-only routes: Shar, Activity and FAQ (with a query or trailing slash) are; Home, Network and the profile are not", ["/shar", "/activity", "/faq", "/faq?section=network", "/shar/"].every((p) => co.isCreatorOnlyRoute(p)) && co.isCreatorOnlyRoute({ pathname: "/faq" }) && ["/", "/network", "/profile", "/crypto", "/creator"].every((p) => !co.isCreatorOnlyRoute(p)));
+const guard = read("src/components/shar/CreatorOnly.tsx");
+check("the CreatorOnly screen guard sends non-creators Home and stays blank while it checks", guard.includes('<Redirect href="/" />') && guard.includes("data?.creator == null") && guard.includes("isLoading"));
+check("the Shar, Activity and FAQ screens are each wrapped in CreatorOnly (direct links and old history entries included)", ["src/app/(tabs)/shar.tsx", "src/app/activity.tsx", "src/app/faq.tsx"].every((f) => { const s = read(f); return s.includes("<CreatorOnly>") && /export default function \w+\(\) \{\s*return \(\s*<CreatorOnly>/.test(s); }));
+check("links the assistant writes to Shar / Activity / FAQ do nothing for non-creators, and the chat cards drop their 'Open Shar' / 'Open Activity' links", read("src/components/chat/MessageBubble.tsx").includes("!isCreator && isCreatorOnlyRoute(screen)") && /\{isCreator \? \(\s*<Pressable onPress=\{\(\) => open\('\/shar'\)\}/.test(read("src/components/chat/ToolResultCard.tsx")) && /\{isCreator \? \(\s*<Pressable onPress=\{\(\) => open\('\/activity'\)\}/.test(read("src/components/chat/ToolResultCard.tsx")));
+check("the Network screen's help (?) button, which opens the FAQ, shows only for creators", /\{isCreator \? \(\s*<Pressable onPress=\{\(\) => router\.push\(\{ pathname: '\/faq'/.test(read("src/app/(tabs)/network.tsx")));
 const how = read("src/components/shar/HowSharWorks.tsx");
 check("'How Shar works' is a dropdown: a tappable header per item, the answer only when it is open", how.includes("accessibilityState={{ expanded: open }}") && how.includes("{open ? <Text style={styles.itemBody}>"));
 

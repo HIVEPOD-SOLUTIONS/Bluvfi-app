@@ -3,6 +3,8 @@ import { router } from 'expo-router';
 import Markdown from 'react-native-markdown-display';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useChatSheet } from '@/lib/chat-context';
+import { isCreatorOnlyRoute } from '@/lib/creator-only';
+import { useIsCreator } from '@/hooks/use-shar';
 
 /** The only in-app destinations the agent may link to (see the app section of the server's prompt). */
 const APP_LINKS: Record<string, string> = {
@@ -22,6 +24,7 @@ const PROVIDER_LINK = /^bluvfi:\/\/provider\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4
 /** The user's message: a right-aligned bubble. The assistant's: plain markdown text with no bubble. */
 export function MessageBubble({ role, text }: { role: string; text: string }) {
   const { closeChat } = useChatSheet();
+  const isCreator = useIsCreator();
   if (!text.trim()) return null;
 
   if (role === 'user') {
@@ -41,7 +44,9 @@ export function MessageBubble({ role, text }: { role: string; text: string }) {
         onLinkPress={(url) => {
           const screen = APP_LINKS[url.toLowerCase().replace(/\/+$/, '')];
           const provider = PROVIDER_LINK.exec(url)?.[1];
-          if (screen) {
+          if (screen && !isCreator && isCreatorOnlyRoute(screen)) {
+            // Shar, Activity and Help are for creators; the link does nothing for anyone else.
+          } else if (screen) {
             closeChat();
             router.navigate(screen as never);
           } else if (provider) {

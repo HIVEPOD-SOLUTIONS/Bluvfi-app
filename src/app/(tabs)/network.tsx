@@ -53,6 +53,8 @@ export default function NetworkScreen() {
   const explore = useNetworkProviders(browse);
   const mine = useMyProviders();
   const creatorState = useCreator();
+  // The help (FAQ) screen is for creators only.
+  const isCreator = creatorState.data?.creator != null;
   const credits = useCredits();
   const [creditsOpen, setCreditsOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -99,9 +101,13 @@ export default function NetworkScreen() {
             <BackIcon />
           </Pressable>
           <Text style={styles.title}>Open network</Text>
-          <Pressable onPress={() => router.push({ pathname: '/faq', params: { section: 'network' } } as never)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Help with the network" style={styles.iconButton}>
-            <Text style={styles.help}>?</Text>
-          </Pressable>
+          {isCreator ? (
+            <Pressable onPress={() => router.push({ pathname: '/faq', params: { section: 'network' } } as never)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Help with the network" style={styles.iconButton}>
+              <Text style={styles.help}>?</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.iconButton} />
+          )}
         </View>
 
         <View style={styles.intro}>
