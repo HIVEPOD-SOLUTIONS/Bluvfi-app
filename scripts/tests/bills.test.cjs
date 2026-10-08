@@ -119,5 +119,11 @@ let done = false;
 function finishAsync() {
   if (done) return;
   done = true;
-  finish();
+  {
+  const v = read("src/hooks/use-voice-input.ts");
+  check("voice: the recording goes up as a native multipart upload with the field name and type the server reads (RN's { uri } FormData part is refused by Expo's fetch)", v.includes("uploadAsync(") && v.includes("fieldName: 'audio'") && v.includes("mimeType: 'audio/mp4'") && v.includes("FileSystemUploadType.MULTIPART") && !v.includes("new FormData()"));
+  check("voice: a non-2xx answer still shows the server's words and its status, even when the body isn't JSON", v.includes("res.status < 200 || res.status >= 300") && v.includes("JSON.parse(res.body)"));
+}
+
+finish();
 }

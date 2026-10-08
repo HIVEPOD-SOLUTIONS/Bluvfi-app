@@ -58,6 +58,13 @@ check("the splash background is the brand blue (#0000CC), matching the app icon"
 check("the splash mark is large enough to read (imageWidth >= 150)", Number(splash.imageWidth) >= 150);
 check("the splash fades out over a short crossfade, with setOptions imported from expo-splash-screen (expo-router's SplashScreen has none)", /import \{ setOptions as setSplashOptions \} from 'expo-splash-screen'/.test(rootLayout) && /setSplashOptions\(\{ fade: true, duration: 300 \}\)/.test(rootLayout));
 
+// the animated launch screen: same picture as the native splash, then it comes alive and fades into the app
+const bs = read("src/components/ui/BrandSplash.tsx");
+check("the animated launch screen uses the native splash's blue and logo width, so the hand-over is invisible", bs.includes("SPLASH_BLUE = '#0000CC'") && Number((bs.match(/SPLASH_LOGO_SIZE = ([0-9]+)/) || [])[1]) === Number(splash.imageWidth) && bs.includes("assets/images/splash-icon.png"));
+check("the logo breathes and rings of light ripple out; reduce-motion holds it still", bs.includes("withRepeat") && bs.includes("breath") && bs.includes("ringStyle2") && bs.includes("useReducedMotion") && bs.includes("if (reduced) return;"));
+check("it stays a minimum moment, then fades out and removes itself", bs.includes("SPLASH_MIN_MS") && bs.includes("SPLASH_FADE_MS") && bs.includes("onDone") && rootLayout.includes("<BrandSplash ready={isReady}") && rootLayout.includes("splashDone ? null"));
+check("the native splash is dismissed only once the animated one is on screen (no gap)", bs.includes("onLayout={() => void SplashScreen.hideAsync()}"));
+
 // who sees what: Admin only for the team, Shar / Activity / Help only for creators
 const profile = read("src/components/profile/ProfileContent.tsx");
 const sharHooks = read("src/hooks/use-shar.ts");

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import type * as ExpoAudio from 'expo-audio';
+import { FileSystemUploadType, uploadAsync } from 'expo-file-system/legacy';
 import { API_BASE_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { voiceFailureMessage, voiceNetworkMessage } from '@/lib/voice-errors';
@@ -114,15 +115,22 @@ export function useVoiceInput(onText: (text: string) => void) {
 
       setState('transcribing');
       const token = await getAccessToken();
-      const form = new FormData();
-      form.append('audio', { uri, name: 'voice.m4a', type: 'audio/mp4' } as unknown as Blob);
-      const res = await fetch(`${API_BASE_URL}/api/voice/transcribe`, {
-        method: 'POST',
+      // Uploaded natively as a multipart form with the field name and type the server expects. (Expo's fetch, which this app uses, rejects the
+      // old React Native { uri, name, type } FormData part with "Unsupported FormDataPart implementation", which is what broke voice.)
+      const res = await uploadAsync(`${API_BASE_URL}/api/voice/transcribe`, uri, {
+        httpMethod: 'POST',
+        uploadType: FileSystemUploadType.MULTIPART,
+        fieldName: 'audio',
+        mimeType: 'audio/mp4',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
       });
-      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!res.ok) {
+      let data: { text?: string; error?: string } = {};
+      try {
+        data = JSON.parse(res.body) as { text?: string; error?: string };
+      } catch {
+        /* not JSON (an HTML error page): the status still tells what happened */
+      }
+      if (res.status < 200 || res.status >= 300) {
         // 429 carries the limit message ("daily voice limit… resets in about 5 hours"). Anything else shows what the server said and its status,
         // so a failure can be told apart (not signed in, voice not set up, the speech service down) instead of one generic line.
         console.warn('[voice] the server answered', res.status, data.error);

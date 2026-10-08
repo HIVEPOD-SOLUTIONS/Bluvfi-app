@@ -1,6 +1,6 @@
 import '@/lib/polyfills';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { applyPendingReferral } from '@/lib/referral';
 import { WalletConnectionProvider } from '@/lib/wallet-connection';
 import { describeConversion, loadSkrPay, onAutoConversion } from '@/lib/skr-pay';
 import { Colors } from '@/constants/theme';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import { initRevenueCat } from '@/lib/revenuecat';
 import { initAds } from '@/lib/admob';
 
@@ -53,12 +54,25 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <ToastProvider>
-              <AuthGate />
+              <LaunchGate />
             </ToastProvider>
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/** The app, under the animated launch screen (which fades away once sign-in has been checked). */
+function LaunchGate() {
+  const { isReady } = useAuth();
+  const [splashDone, setSplashDone] = useState(false);
+  const finish = useCallback(() => setSplashDone(true), []);
+  return (
+    <View style={{ flex: 1, backgroundColor: Colors.bg0 }}>
+      <AuthGate />
+      {splashDone ? null : <BrandSplash ready={isReady} onDone={finish} />}
+    </View>
   );
 }
 
