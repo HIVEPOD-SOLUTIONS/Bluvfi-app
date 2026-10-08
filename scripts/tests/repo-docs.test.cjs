@@ -48,6 +48,8 @@ check("every file or folder the README points to exists", paths.length >= 12 && 
 const globbed = ["src/lib/skr-*.ts"].every((g) => fs.readdirSync(path.join(root, "src/lib")).some((f) => /^skr-.*\.ts$/.test(f)));
 check("the SKR files the README describes exist", globbed);
 
+check("the README warns to build Gradle with JDK 17 (JDK 24+ breaks the worklets CMake step) and says how to fix Android Studio", readme.includes("Use JDK 17 for Gradle") && readme.includes("Gradle JDK") && readme.includes("toolchainVersion=17"));
+
 // ── licence and legal wording
 const licence = read("LICENSE");
 check("the LICENSE is the project's own, not Expo's starter MIT file", !/650 Industries|aka Expo/i.test(licence) && /All rights reserved/i.test(licence) && /Bluvfi/.test(licence));

@@ -72,6 +72,10 @@ include the native wallet and ads modules).
 
 On a machine with limited memory the native build can run out of RAM; `plugins/with-limited-cpp-parallelism.js` already caps concurrent C++ compiles for that.
 
+**Use JDK 17 for Gradle.** With JDK 24 or newer (Android Studio's bundled JDK 25, for example) the Android Gradle Plugin fails the `react-native-worklets`
+CMake step ("A restricted method in java.lang.System has been called"). In Android Studio set Settings, Build Tools, Gradle, **Gradle JDK** to a JDK 17. If sync
+still fails, check that `android/gradle/gradle-daemon-jvm.properties` says `toolchainVersion=17` (Studio can regenerate it with 25) and sync again.
+
 ### Build a release APK
 
 The release build is signed with your own keystore when one is configured, and with the debug key otherwise (so a plain clone still builds).
