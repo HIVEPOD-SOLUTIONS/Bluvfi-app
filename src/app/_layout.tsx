@@ -148,6 +148,7 @@ function AuthGate() {
         <Stack.Screen name="provider/new" />
         <Stack.Screen name="provider/edit/[id]" />
         <Stack.Screen name="creator" />
+        <Stack.Screen name="invite" />
         <Stack.Screen name="activity" />
         <Stack.Screen name="faq" />
       </Stack.Protected>

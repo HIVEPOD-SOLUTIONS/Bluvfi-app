@@ -77,6 +77,11 @@ const iFaq = profile.indexOf("Help and frequently asked questions");
 check("Shar rewards, Activity and Help & FAQ rows in the profile sit inside an isCreator guard", iCreator > -1 && iCreator < iShar && profile.indexOf("{isCreator ? (", iShar) > iShar && profile.indexOf("{isCreator ? (", iShar) < iActivity && iActivity < iFaq);
 check("the Shar card on Home shows only for creators; useIsCreator is false until the server says so", read("src/app/(tabs)/index.tsx").includes("shar && isCreator") && sharHooks.includes("useCreator().data?.creator != null"));
 check("a person the server says is not a creator yet is offered 'Become a creator' in the profile (the way in to the sign-up), and only then", profile.includes("canBecomeCreator = !!creatorState.data && creatorState.data.creator == null") && profile.includes("{canBecomeCreator ? (") && profile.includes("router.push('/creator' as never)"));
+{
+  const inv = read("src/app/invite.tsx");
+  check("Invite friends is for everyone: its own screen in the signed-in routes (not behind the creator guard), shown as a profile row, with the code, share, copy and enter-a-code", rootLayout.includes('<Stack.Screen name="invite" />') && !inv.includes("CreatorOnly") && profile.includes("router.push('/invite' as never)") && inv.includes("Share my invite") && inv.includes("Copy code") && inv.includes("Enter a code") && inv.includes("useUseReferralCode"));
+  check("the Invite friends profile row sits outside the isCreator and canBecomeCreator guards", profile.indexOf("Invite friends") < profile.indexOf("{canBecomeCreator ? (") && profile.indexOf("Invite friends") > -1);
+}
 const co = makeLoader({})("src/lib/creator-only.ts");
 check("creator-only routes: Shar, Activity and FAQ (with a query or trailing slash) are; Home, Network and the profile are not", ["/shar", "/activity", "/faq", "/faq?section=network", "/shar/"].every((p) => co.isCreatorOnlyRoute(p)) && co.isCreatorOnlyRoute({ pathname: "/faq" }) && ["/", "/network", "/profile", "/crypto", "/creator"].every((p) => !co.isCreatorOnlyRoute(p)));
 const guard = read("src/components/shar/CreatorOnly.tsx");

@@ -253,6 +253,22 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
         </Pressable>
       ) : null}
 
+      <Pressable
+        onPress={() => {
+          onBeforeLogout?.();
+          router.push('/invite' as never);
+        }}
+        style={styles.sharRow}
+        accessibilityRole="button"
+        accessibilityLabel="Invite friends"
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sharTitle}>Invite friends</Text>
+          <Text style={styles.sharSub}>Share your code and earn a boost from what they spend</Text>
+        </View>
+        <Text style={styles.sharGo}>›</Text>
+      </Pressable>
+
       {canBecomeCreator ? (
         <Pressable
           onPress={() => {

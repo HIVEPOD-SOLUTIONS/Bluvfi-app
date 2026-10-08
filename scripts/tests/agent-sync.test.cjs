@@ -41,7 +41,15 @@ const emitted = new Set(
 const missing = [...emitted].filter((l) => !appLinks.has(l));
 check("every screen link the agent can give opens a screen in the app", missing.length === 0, `missing: ${missing.join(", ")}`);
 check("provider links (bluvfi://provider/<id>) are handled too", /PROVIDER_LINK/.test(bubble) && /provider\/\(/.test(bubble.replace(/\\/g, "")));
-const routes = new Set(["/crypto", "/profile", "/", "/shar", "/network", "/faq", "/activity", "/creator"]);
+{
+  // every row of the profile that a person can tap is something the agent knows about, so it can say where to find things
+  const profile = fs.readFileSync(path.join(app, "src/components/profile/ProfileContent.tsx"), "utf8");
+  const rows = [...profile.matchAll(/<Text style=\{styles\.sharTitle\}>([^<{]+)<\/Text>/g)].map((m) => m[1].trim()).filter((t) => t !== "Admin");
+  const named = (t) => prompt.includes(t) || prompt.includes(t.replace("&", "and")) || (t === "Help & FAQ" && prompt.includes("Help & FAQ"));
+  check("every profile row (except the team-only Admin) is described in the agent's prompt: " + rows.join(", "), rows.length >= 4 && rows.every(named), rows.filter((t) => !named(t)).join(", "));
+  check("the prompt never links to an Admin screen", !prompt.includes("bluvfi://admin") && !/\]\(bluvfi:\/\/admin/i.test(prompt));
+}
+const routes = new Set(["/crypto", "/profile", "/", "/shar", "/network", "/faq", "/activity", "/creator", "/invite"]);
 const targets = [...bubble.matchAll(/'bluvfi:\/\/[a-z]+': '([^']+)'/g)].map((m) => m[1]);
 check("every link target is a real screen file", targets.every((t) => routes.has(t) && (t === "/" || ["crypto", "profile", "shar", "network"].includes(t.slice(1)) ? true : fs.existsSync(path.join(app, "src/app", t.slice(1) + ".tsx")))), targets.join());
 

@@ -16,6 +16,7 @@ const APP_LINKS: Record<string, string> = {
   'bluvfi://faq': '/faq',
   'bluvfi://activity': '/activity',
   'bluvfi://creator': '/creator',
+  'bluvfi://invite': '/invite',
 };
 
 /** A provider the agent found: bluvfi://provider/<uuid>. Only a real id shape is followed. */
