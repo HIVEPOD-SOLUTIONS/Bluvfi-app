@@ -11,7 +11,7 @@ import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useSkrName } from '@/lib/skr';
 import { SharOrb } from '@/components/shar/SharOrb';
 import { SharColors } from '@/constants/shar';
-import { useAdminMe, useIsCreator, useShar } from '@/hooks/use-shar';
+import { useAdminMe, useCreator, useShar } from '@/hooks/use-shar';
 import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
@@ -138,7 +138,10 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
   // Only people on the server's admin list ever see this row (the server checks again on every admin call).
   const isAdmin = useAdminMe().data?.admin === true;
   // Shar rewards, Activity and Help & FAQ are for provider creators only.
-  const isCreator = useIsCreator();
+  const creatorState = useCreator();
+  const isCreator = creatorState.data?.creator != null;
+  // Anyone the server has confirmed is not a creator yet is offered the sign-up (nothing shows while it loads or if the check fails).
+  const canBecomeCreator = !!creatorState.data && creatorState.data.creator == null;
   const xrpl = useXrplWallet();
   const xrplBalance = useXrpBalance(!!xrpl.address);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -245,6 +248,24 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
           <View style={{ flex: 1 }}>
             <Text style={styles.sharTitle}>Admin</Text>
             <Text style={styles.sharSub}>Review providers and send payouts</Text>
+          </View>
+          <Text style={styles.sharGo}>›</Text>
+        </Pressable>
+      ) : null}
+
+      {canBecomeCreator ? (
+        <Pressable
+          onPress={() => {
+            onBeforeLogout?.();
+            router.push('/creator' as never);
+          }}
+          style={styles.sharRow}
+          accessibilityRole="button"
+          accessibilityLabel="Become a provider creator"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sharTitle}>Become a creator</Text>
+            <Text style={styles.sharSub}>List a provider on the open network and earn Shar</Text>
           </View>
           <Text style={styles.sharGo}>›</Text>
         </Pressable>
