@@ -78,7 +78,9 @@ still fails, check that `android/gradle/gradle-daemon-jvm.properties` says `tool
 
 ### Build a release APK
 
-The release build is signed with your own keystore when one is configured, and with the debug key otherwise (so a plain clone still builds).
+The release build is signed with your own keystore. A guard in the build refuses to produce a release APK signed with the debug key, so one can never be shipped by
+accident: it lets a build through when the keystore settings below are present, when Android Studio's Generate Signed APK wizard supplies a keystore, or when you
+pass `-PALLOW_DEBUG_SIGNED_RELEASE=true` for a throwaway test build. Debug builds (`npx expo run:android`) are unaffected.
 On Windows, `powershell -ExecutionPolicy Bypass -File scripts\setup-release-signing.ps1` does this for you: it copies the keystore outside the repo, asks for the
 alias and passwords (masked), checks them with `keytool`, and writes them to your user-level `~/.gradle/gradle.properties`. Or put these there yourself
 (never in the repo):

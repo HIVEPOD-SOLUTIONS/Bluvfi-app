@@ -58,9 +58,17 @@ const real = path.join(__dirname, "../../android/app/build.gradle");
 if (fs.existsSync(real)) {
   const text = fs.readFileSync(real, "utf8").replace(/\r\n/g, "\n");
   check("the generated android/app/build.gradle already has the signing setup the plugin produces (and re-applying changes nothing)", add(text) === text);
+  check("and its guard accepts Android Studio's signing wizard", text.includes("!project.hasProperty('android.injected.signing.store.file')"));
 } else {
   console.log("SKIP generated build.gradle check: no android/ folder yet (run `npx expo prebuild`)");
 }
+
+// the guard that refuses a debug-signed release
+check("a guard refuses a release build that has no keystore, and only for release tasks", out.includes("refuse to produce a release signed with the debug key") && out.includes("throw new GradleException(") && out.includes("(assemble|bundle|package)Release"));
+check("the guard lets a build through when the BLUVFI_ keystore is set, when Android Studio's signing wizard supplies one, or when a throwaway build is asked for", ["'BLUVFI_STORE_FILE'", "'android.injected.signing.store.file'", "'ALLOW_DEBUG_SIGNED_RELEASE'"].every((p) => out.includes(`!project.hasProperty(${p})`)));
+const OLD = out.replace("!project.hasProperty('android.injected.signing.store.file') && ", "");
+check("an older guard (one that didn't know about the Studio wizard) is upgraded in place, and only once", !OLD.includes("android.injected") && add(OLD).includes("!project.hasProperty('android.injected.signing.store.file')") && add(add(OLD)) === add(OLD) && add(OLD).split("refuse to produce").length === 2);
+check("the guard is added after the signing config only (an unrecognised template gets neither)", add("android { }") === "android { }");
 
 // the helper that writes the key details into the user-level gradle.properties
 const setup = fs.readFileSync(path.join(__dirname, "../setup-release-signing.ps1"), "utf8");
