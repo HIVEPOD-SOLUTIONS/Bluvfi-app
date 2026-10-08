@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { AddCreditsSheet } from '@/components/shar/AddCreditsSheet';
 import { EarningsCard, WithdrawSheet } from '@/components/shar/EarningsCard';
 import { SharOrb } from '@/components/shar/SharOrb';
+import { useSharChime } from '@/hooks/use-shar-chime';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { SharColors } from '@/constants/shar';
 import {
@@ -55,6 +56,7 @@ export default function NetworkScreen() {
   const creatorState = useCreator();
   // The help (FAQ) screen is for creators only.
   const isCreator = creatorState.data?.creator != null;
+  useSharChime();
   const credits = useCredits();
   const [creditsOpen, setCreditsOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);

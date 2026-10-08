@@ -22,6 +22,15 @@ export const SharColors = {
   pending: Colors.amber,
 } as const;
 
+/** A Seeker's light: whiter at the heart, a wider and stronger halo, and a pale outer glow. */
+export const SeekerColors = {
+  core: '#FFFFFF',
+  haloInner: 'rgba(214, 228, 255, 0.9)',
+  haloMid: 'rgba(120, 150, 255, 0.5)',
+  outerGlow: 'rgba(157, 184, 255, 0.22)',
+  spark: '#FFFFFF',
+} as const;
+
 /** The ladder, in the story's terms. Mirrors TIERS in the server's src/lib/shar-rules.ts. */
 export const SHAR_TIER_BLURB: Record<string, string> = {
   spark: 'Every journey starts with a spark.',

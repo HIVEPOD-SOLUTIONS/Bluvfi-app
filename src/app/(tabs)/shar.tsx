@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { CreatorOnly } from '@/components/shar/CreatorOnly';
+import { useSharChime } from '@/hooks/use-shar-chime';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -61,6 +62,7 @@ export default function SharScreen() {
 }
 
 function SharScreenContent() {
+  useSharChime();
   const insets = useSafeAreaInsets();
   const summary = useShar();
   const board = useSharLeaderboard();

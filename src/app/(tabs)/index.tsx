@@ -22,6 +22,7 @@ import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { SharOrb } from '@/components/shar/SharOrb';
 import { SharColors } from '@/constants/shar';
 import { useIsCreator, useShar } from '@/hooks/use-shar';
+import { useSharChime } from '@/hooks/use-shar-chime';
 import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
@@ -88,6 +89,7 @@ export default function HomeScreen() {
   const shar = useShar().data;
   // The Shar card is for provider creators only.
   const isCreator = useIsCreator();
+  useSharChime(); // Shar's soft chime for creators when Home comes into view
   const [askText, setAskText] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [cryptorefillsOpen, setCryptorefillsOpen] = useState(false);
