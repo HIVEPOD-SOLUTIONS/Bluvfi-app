@@ -87,7 +87,7 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
   const coin = read(app, "src/components/crypto/CoinSheet.tsx");
   const cryptoTab = read(app, "src/app/(tabs)/crypto.tsx");
   const bills = read(app, "src/components/dashboard/DashboardSections.tsx");
-  const bitrefill = read(app, "src/components/dashboard/BitrefillCatalogSheet.tsx");
+  const bitrefill = read(app, "src/lib/bitrefill-catalog.ts");
   const home = read(app, "src/app/(tabs)/index.tsx");
   const minFund = /const MIN_FUND_AMOUNT = (\d+)/.exec(fund)?.[1];
   check("Fund Wallet: the tabs, the minimum and the networks the prompt lists are the real ones", ["Buy", "Balances", "Send", "Bridge", "Solana"].every((t) => fund.includes(`label: '`) && fund.includes(t)) && minFund === "11" && prompt.includes(`$${minFund} minimum`) && ["Base", "Ethereum", "Arbitrum", "Optimism", "Polygon", "Avalanche", "Solana"].every((n) => fund.includes(`label: '${n}'`) && prompt.includes(n)));

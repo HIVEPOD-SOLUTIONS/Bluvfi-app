@@ -3,10 +3,8 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import type { Payment } from '@/lib/api-types';
+import { BITREFILL_OFFICIAL_LOGO, CRYPTOREFILLS_LOGO } from '@/lib/bills-logos';
 import { PurchaseRow } from './PurchaseRow';
-
-const BITREFILL_LOGO =
-  'https://files.readme.io/4d0d667c7bc96cf97cd030670700d5a4163c361f3ed8a83dec0b6b1ce5cc5076-iOS_app_icon_1024.png';
 
 /**
  * The four dashboard tabs (Bills / Invest / Banking / History). They render plain lists (no nested
@@ -31,12 +29,15 @@ interface BillsSectionProps {
   onViewAll: () => void;
   onAskAi: () => void;
   onOpenBitrefill: () => void;
+  onOpenCryptorefills: () => void;
+  /** A tap on a purchase opens its details. */
+  onOpenPurchase: (payment: Payment) => void;
 }
 
 const RECENT_PURCHASES = 3;
 
 /** Bills tab, as on the web: purchase summary, then "My Bills" / "Browse" (provider catalogs). */
-export function BillsSection({ purchasedCount, loading, purchases, onViewAll, onAskAi, onOpenBitrefill }: BillsSectionProps) {
+export function BillsSection({ purchasedCount, loading, purchases, onViewAll, onAskAi, onOpenBitrefill, onOpenCryptorefills, onOpenPurchase }: BillsSectionProps) {
   const [view, setView] = useState<'bills' | 'browse'>('bills');
 
   return (
@@ -84,20 +85,38 @@ export function BillsSection({ purchasedCount, loading, purchases, onViewAll, on
               </Pressable>
             </View>
             {purchases.slice(0, RECENT_PURCHASES).map((p) => (
-              <PurchaseRow key={p.id} payment={p} />
+              <PurchaseRow key={p.id} payment={p} onPress={() => onOpenPurchase(p)} />
             ))}
           </View>
         ))}
 
       {view === 'browse' && (
-        <Pressable onPress={onOpenBitrefill} style={styles.provider}>
-          <Image source={{ uri: BITREFILL_LOGO }} style={styles.providerLogo} resizeMode="contain" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Bitrefill</Text>
-            <Text style={styles.rowSub}>Gift cards, mobile top-ups & eSIM data plans — 10,000+ products worldwide</Text>
-          </View>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
+        <View style={styles.list}>
+          <Pressable onPress={onOpenBitrefill} accessibilityRole="button" accessibilityLabel="Open Bitrefill" style={styles.provider}>
+            <Image source={{ uri: BITREFILL_OFFICIAL_LOGO }} style={styles.providerLogo} resizeMode="contain" />
+            <View style={{ flex: 1 }}>
+              <View style={styles.providerNameRow}>
+                <Text style={styles.rowTitle}>Bitrefill</Text>
+                <Text style={styles.badgeGrey}>Digital Products</Text>
+                <Text style={styles.badgeGreen}>USDC</Text>
+              </View>
+              <Text style={styles.rowSub} numberOfLines={2}>Gift cards, mobile top-ups & eSIM data plans — 10,000+ products worldwide</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          <Pressable onPress={onOpenCryptorefills} accessibilityRole="button" accessibilityLabel="Open Cryptorefills" style={styles.provider}>
+            <Image source={{ uri: CRYPTOREFILLS_LOGO }} style={styles.providerLogo} resizeMode="contain" />
+            <View style={{ flex: 1 }}>
+              <View style={styles.providerNameRow}>
+                <Text style={styles.rowTitle}>Cryptorefills</Text>
+                <Text style={styles.badgeGrey}>Digital Products</Text>
+                <Text style={styles.badgeGreen}>USDC · No gas</Text>
+              </View>
+              <Text style={styles.rowSub} numberOfLines={2}>Gift cards, mobile top-ups & eSIMs — 10,000+ brands in 180 countries</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
@@ -249,6 +268,32 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: Radii.lg,
     backgroundColor: 'rgba(242,240,232,0.06)',
+  },
+  providerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  badgeGrey: {
+    ...Type.small,
+    fontSize: 11,
+    color: Colors.tx1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  badgeGreen: {
+    ...Type.small,
+    fontSize: 11,
+    color: '#4ADE80',
+    backgroundColor: 'rgba(74,222,128,0.1)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
   },
   chevron: {
     ...Type.h1,

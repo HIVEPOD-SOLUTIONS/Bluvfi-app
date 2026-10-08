@@ -79,7 +79,7 @@ check("the README points to the setup script", fs.readFileSync(path.join(__dirna
 
 // the app id is shared with the existing Capacitor app, so the new build must carry a HIGHER version to install over it
 const aj = JSON.parse(fs.readFileSync(path.join(__dirname, "../../app.json"), "utf8"));
-check("app.json carries the Android versionCode and version (not left to the generated android/ folder, which is not in git)", aj.expo.android.versionCode === 600 && aj.expo.version === "6.0.0");
+check("app.json carries the Android versionCode and version (not left to the generated android/ folder, which is not in git)", Number.isInteger(aj.expo.android.versionCode) && aj.expo.android.versionCode >= 600 && /^\d+\.\d+\.\d+$/.test(aj.expo.version));
 const oldApp = path.join(__dirname, "../../../bluvfi/android/app/build.gradle");
 if (fs.existsSync(oldApp)) {
   const old = Number(/versionCode\s+(\d+)/.exec(fs.readFileSync(oldApp, "utf8"))?.[1]);

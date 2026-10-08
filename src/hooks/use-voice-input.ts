@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 import type * as ExpoAudio from 'expo-audio';
 import { API_BASE_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { voiceFailureMessage, voiceNetworkMessage } from '@/lib/voice-errors';
 
 export type VoiceState = 'idle' | 'recording' | 'transcribing';
 
@@ -122,8 +123,10 @@ export function useVoiceInput(onText: (text: string) => void) {
       });
       const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
       if (!res.ok) {
-        // 429 carries the limit message ("daily voice limit… resets in about 5 hours"); others are generic.
-        setError(res.status === 429 && data.error ? data.error : "Couldn't transcribe that. Please try again.");
+        // 429 carries the limit message ("daily voice limit… resets in about 5 hours"). Anything else shows what the server said and its status,
+        // so a failure can be told apart (not signed in, voice not set up, the speech service down) instead of one generic line.
+        console.warn('[voice] the server answered', res.status, data.error);
+        setError(voiceFailureMessage(res.status, data.error));
         return;
       }
       const text = data.text?.trim();
@@ -131,7 +134,7 @@ export function useVoiceInput(onText: (text: string) => void) {
       else setError("Didn't catch that. Please try again.");
     } catch (err) {
       console.warn('[voice] transcription failed:', err);
-      setError("Couldn't transcribe that. Please try again.");
+      setError(voiceNetworkMessage(err));
     } finally {
       setState('idle');
       busy.current = false;

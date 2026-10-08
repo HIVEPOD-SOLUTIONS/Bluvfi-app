@@ -3,7 +3,8 @@
 import '@/lib/polyfills';
 
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useFundSolanaWallet, useFundWallet } from '@privy-io/expo/ui';
 import { arbitrum, avalanche, base, mainnet, optimism, polygon } from 'viem/chains';

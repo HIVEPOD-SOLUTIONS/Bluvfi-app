@@ -26,6 +26,7 @@ import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
+import { CryptorefillsCatalogSheet } from '@/components/dashboard/CryptorefillsCatalogSheet';
 import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
 import {
   BankingSection,
@@ -87,7 +88,10 @@ export default function HomeScreen() {
   const shar = useShar().data;
   const [askText, setAskText] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [cryptorefillsOpen, setCryptorefillsOpen] = useState(false);
   const [purchasesOpen, setPurchasesOpen] = useState(false);
+  // The purchase whose details are showing in the history sheet (null: the list).
+  const [selectedPurchase, setSelectedPurchase] = useState<Payment | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockRow | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<SupportedCoin | null>(null);
@@ -255,9 +259,17 @@ export default function HomeScreen() {
               purchasedCount={purchasedCount}
               loading={billsLoading}
               purchases={billPayments?.payments ?? []}
-              onViewAll={() => setPurchasesOpen(true)}
+              onViewAll={() => {
+                setSelectedPurchase(null);
+                setPurchasesOpen(true);
+              }}
               onAskAi={() => openChat('Find me a good gift card for gaming or streaming')}
               onOpenBitrefill={() => setCatalogOpen(true)}
+              onOpenCryptorefills={() => setCryptorefillsOpen(true)}
+              onOpenPurchase={(p) => {
+                setSelectedPurchase(p);
+                setPurchasesOpen(true);
+              }}
             />
           )}
           {tab === 'invest' && (
@@ -348,13 +360,24 @@ export default function HomeScreen() {
       <StockWithdrawSheet open={withdrawOpen} cashUsd={stocksPortfolio?.cashUsd ?? 0} onClose={() => setWithdrawOpen(false)} />
       <PurchasesSheet
         open={purchasesOpen}
-        onClose={() => setPurchasesOpen(false)}
+        onClose={() => {
+          setPurchasesOpen(false);
+          setSelectedPurchase(null);
+        }}
         purchases={billPayments?.payments ?? []}
+        selected={selectedPurchase}
+        onSelect={setSelectedPurchase}
+        onAsk={openChat}
       />
       <BitrefillCatalogSheet
         open={catalogOpen}
         onClose={() => setCatalogOpen(false)}
-        onBuy={(product, catalogTab) => {
+        purchasedCount={purchasedCount}
+        onAskAi={() => {
+          setCatalogOpen(false);
+          openChat('Find me a good gift card for gaming or streaming');
+        }}
+        onBuy={(product, catalogTab, countryName) => {
           setCatalogOpen(false);
           const request =
             catalogTab === 'topup'
@@ -362,7 +385,21 @@ export default function HomeScreen() {
               : catalogTab === 'esim'
                 ? `get the ${product.name} eSIM plan`
                 : `buy a ${product.name} gift card`;
-          openChat(`I want to ${request}.`);
+          openChat(`I want to ${request} from Bitrefill for ${countryName}.`);
+        }}
+      />
+      <CryptorefillsCatalogSheet
+        open={cryptorefillsOpen}
+        onClose={() => setCryptorefillsOpen(false)}
+        onBuy={(brand, kind, countryName) => {
+          setCryptorefillsOpen(false);
+          const request =
+            kind === 'topup'
+              ? `top up with ${brand.brand_name}`
+              : kind === 'esim'
+                ? `get a ${brand.brand_name} eSIM plan`
+                : `buy a ${brand.brand_name} gift card`;
+          openChat(`I want to ${request} from Cryptorefills for ${countryName}.`);
         }}
       />
     </View>
