@@ -58,4 +58,18 @@ check("the splash background is the brand blue (#0000CC), matching the app icon"
 check("the splash mark is large enough to read (imageWidth >= 150)", Number(splash.imageWidth) >= 150);
 check("the splash fades out over a short crossfade, with setOptions imported from expo-splash-screen (expo-router's SplashScreen has none)", /import \{ setOptions as setSplashOptions \} from 'expo-splash-screen'/.test(rootLayout) && /setSplashOptions\(\{ fade: true, duration: 300 \}\)/.test(rootLayout));
 
+// who sees what: Admin only for the team, Shar / Activity / Help only for creators
+const profile = read("src/components/profile/ProfileContent.tsx");
+const sharHooks = read("src/hooks/use-shar.ts");
+check("Admin shows only when the server says admin === true", profile.includes("useAdminMe().data?.admin === true") && sharHooks.includes("me.admin !== true"));
+check("Admin also needs the admin queue itself to accept the person (401/403 means not an admin)", sharHooks.includes("await call('/api/admin/queue')") && sharHooks.includes("e.status === 401 || e.status === 403"));
+const iCreator = profile.indexOf("{isCreator ? (");
+const iShar = profile.indexOf("Open Shar rewards");
+const iActivity = profile.indexOf("Open your activity");
+const iFaq = profile.indexOf("Help and frequently asked questions");
+check("Shar rewards, Activity and Help & FAQ rows in the profile sit inside an isCreator guard", iCreator > -1 && iCreator < iShar && profile.indexOf("{isCreator ? (", iShar) > iShar && profile.indexOf("{isCreator ? (", iShar) < iActivity && iActivity < iFaq);
+check("the Shar card on Home shows only for creators; useIsCreator is false until the server says so", read("src/app/(tabs)/index.tsx").includes("shar && isCreator") && sharHooks.includes("useCreator().data?.creator != null"));
+const how = read("src/components/shar/HowSharWorks.tsx");
+check("'How Shar works' is a dropdown: a tappable header per item, the answer only when it is open", how.includes("accessibilityState={{ expanded: open }}") && how.includes("{open ? <Text style={styles.itemBody}>"));
+
 finish();

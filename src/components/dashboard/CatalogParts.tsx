@@ -86,12 +86,15 @@ export function SearchBox({ value, onChangeText, placeholder }: { value: string;
 }
 
 /** A product or brand logo (its image, on its own colour when it has one), or an emoji if there is none or it fails to load. */
-export function Logo({ uri, emoji, background, fit = 'contain', size = 44 }: { uri?: string; emoji: string; background?: string; fit?: 'contain' | 'cover'; size?: number }) {
-  const [failed, setFailed] = useState(false);
+export function Logo({ uri, uris, emoji, background, fit = 'contain', size = 44 }: { uri?: string; uris?: string[]; emoji: string; background?: string; fit?: 'contain' | 'cover'; size?: number }) {
+  // Tries each address in turn (`uris`, or just `uri`); the emoji shows once none of them loads.
+  const candidates = uris ?? (uri ? [uri] : []);
+  const [tried, setTried] = useState(0);
+  const current = candidates[tried];
   return (
     <View style={[styles.logo, { width: size, height: size }, background ? { backgroundColor: background } : null]}>
-      {uri && !failed ? (
-        <Image source={{ uri }} style={[styles.logoImage, fit === 'contain' && { padding: 4 }]} resizeMode={fit} onError={() => setFailed(true)} />
+      {current ? (
+        <Image key={current} source={{ uri: current }} style={[styles.logoImage, fit === 'contain' && { padding: 4 }]} resizeMode={fit} onError={() => setTried((n) => n + 1)} />
       ) : (
         <Text style={{ fontSize: size * 0.45 }}>{emoji}</Text>
       )}

@@ -21,7 +21,7 @@ import { MicButton, VoiceBar } from '@/components/chat/VoiceBar';
 import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { SharOrb } from '@/components/shar/SharOrb';
 import { SharColors } from '@/constants/shar';
-import { useShar } from '@/hooks/use-shar';
+import { useIsCreator, useShar } from '@/hooks/use-shar';
 import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
@@ -86,6 +86,8 @@ export default function HomeScreen() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const { openChat, walletOpen, openWallet, closeWallet } = useChatSheet();
   const shar = useShar().data;
+  // The Shar card is for provider creators only.
+  const isCreator = useIsCreator();
   const [askText, setAskText] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [cryptorefillsOpen, setCryptorefillsOpen] = useState(false);
@@ -221,7 +223,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Shar rewards: balance and rank at a glance, opens the full screen. Hidden until the first load succeeds. */}
-        {shar ? (
+        {shar && isCreator ? (
           <Pressable onPress={() => router.push('/shar')} style={styles.sharCard} accessibilityRole="button" accessibilityLabel="Open Shar rewards">
             <SharOrb size={44} />
             <View style={{ flex: 1 }}>

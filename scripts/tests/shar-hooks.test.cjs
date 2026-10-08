@@ -14,9 +14,11 @@ const hooks = makeLoader({
   "@tanstack/react-query": {
     keepPreviousData: "KEEP_PREVIOUS",
     useInfiniteQuery: (options) => options,
+    useQuery: (options) => options,
     useMutation: (options) => options, // hand the options back so the test can run mutationFn / onSuccess itself
     useQueryClient: () => ({ invalidateQueries: (arg) => invalidated.push(arg.queryKey) }),
   },
+  "@/lib/api": { ApiError: class ApiError extends Error { constructor(status, message, code) { super(message); this.status = status; this.code = code; } } },
   "./use-api": { useApiClient: () => fakeCall, useApiQuery: (key, path, params, options) => ({ key, path, params, options }) },
 })("src/hooks/use-shar.ts");
 

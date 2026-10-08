@@ -44,8 +44,19 @@ export function useHistory() {
     staleTime: FAST_MS - 1_000,
   });
 
+  // The same list Home counts its purchases from (shares its cache). History is the union of the two, so a purchase counted on Home is always listed here.
+  const bills = useQuery<{ payments: Payment[] }>({
+    queryKey: ['payments', 'bill'],
+    queryFn: () => call<{ payments: Payment[] }>('/api/payments', { query: { type: 'bill', limit: 100 } }),
+    staleTime: FAST_MS - 1_000,
+  });
+
   const refetch = query.refetch;
-  const payments = (query.data?.payments ?? []).map((p) => (overrides[p.id] ? { ...p, status: overrides[p.id] } : p));
+  const merged = new Map<string, Payment>();
+  for (const p of [...(query.data?.payments ?? []), ...(bills.data?.payments ?? [])]) merged.set(p.id, p);
+  const payments = [...merged.values()]
+    .sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime())
+    .map((p) => (overrides[p.id] ? { ...p, status: overrides[p.id] } : p));
   const pending = payments.filter((p) => isPendingStatus(p.status));
 
   const writeBack = useCallback(
@@ -119,7 +130,7 @@ export function useHistory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending.map((p) => `${p.id}:${p.status}`).join(','), call, refetch, writeBack, evmAddress]);
 
-  return { payments, pendingCount: pending.length, isLoading: query.isLoading, isError: query.isError, refetch };
+  return { payments, pendingCount: pending.length, isLoading: query.isLoading && bills.isLoading, isError: query.isError && bills.isError, refetch };
 }
 
 export interface WeeklyInsight {

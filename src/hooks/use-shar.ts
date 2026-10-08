@@ -1,4 +1,5 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiError } from '@/lib/api';
 import { microToUsd, priceUsd } from '@/lib/money';
 import type { creatorPayload } from '@/lib/provider-publisher';
 import type { AuthType, InputField, authPayload } from '@/lib/provider-config';
@@ -289,6 +290,11 @@ export function useCreator() {
   return useApiQuery<CreatorState>(['network', 'creator'], '/api/creator', undefined, { staleTime: 15_000, retry: 1 });
 }
 
+/** True only once the server says they are a creator. While loading, or if the call fails, it is false: Shar, Activity and Help stay hidden. */
+export function useIsCreator() {
+  return useCreator().data?.creator != null;
+}
+
 /** Sign up to be a creator, or agree again after the provider terms changed. */
 export function useBecomeCreator() {
   const call = useApiClient();
@@ -425,7 +431,23 @@ export function useWithdraw() {
 // ── Admin (only ever shown to people on the server's admin list; the server checks again on every call) ──
 
 export function useAdminMe() {
-  return useApiQuery<{ admin: boolean }>(['admin', 'me'], '/api/admin/me', undefined, { staleTime: 5 * 60_000, retry: 0 });
+  const call = useApiClient();
+  return useQuery<{ admin: boolean }>({
+    queryKey: ['admin', 'me'],
+    queryFn: async () => {
+      const me = await call<{ admin?: unknown }>('/api/admin/me');
+      if (me.admin !== true) return { admin: false };
+      // Belt and braces: the Admin row only shows when the queue itself agrees (a team member is let in, anyone else is refused).
+      try {
+        await call('/api/admin/queue');
+      } catch (e) {
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return { admin: false };
+      }
+      return { admin: true };
+    },
+    staleTime: 5 * 60_000,
+    retry: 0,
+  });
 }
 
 export type PayoutKind = 'shar_claim' | 'commission';

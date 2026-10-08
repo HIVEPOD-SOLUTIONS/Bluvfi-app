@@ -46,6 +46,13 @@ const lg = makeLoader({})("src/lib/bills-logos.ts");
 check("logos: a Bitrefill product gets the official Bitrefill logo, even when the API sent another", lg.bitrefillLogoUrl({ name: "Bitrefill Gift Card (USD)", logo_url: "https://x.example/a.png" }) === lg.BITREFILL_OFFICIAL_LOGO);
 check("logos: otherwise the logo the API sent wins over a favicon", lg.bitrefillLogoUrl({ name: "Netflix", logo_url: "https://x.example/netflix.png" }) === "https://x.example/netflix.png");
 check("logos: with no API logo, a known brand gets its Google favicon", lg.bitrefillLogoUrl({ name: "Netflix US" }) === "https://www.google.com/s2/favicons?domain=netflix.com&sz=128" && lg.bitrefillLogoUrl({ name: "MTN Nigeria" }).includes("domain=mtn.com"));
+check("logos: the row tries the API logo, then the favicon, before it gives up on the emoji (a CDN may refuse the phone)", JSON.stringify(lg.bitrefillLogoCandidates({ name: "Netflix", logo_url: "https://x.example/n.png" })) === JSON.stringify(["https://x.example/n.png", "https://www.google.com/s2/favicons?domain=netflix.com&sz=128"]) && lg.bitrefillLogoCandidates({ name: "Zxqv" }).length === 0 && lg.bitrefillLogoCandidates({ name: "Bitrefill Gift Card" }).length === 1);
+{
+  const parts = read("src/components/dashboard/CatalogParts.tsx");
+  check("logos: the Logo component moves to the next address on an error and only then shows the emoji; the Bitrefill rows pass every candidate", parts.includes("onError={() => setTried((n) => n + 1)}") && read("src/components/dashboard/BitrefillCatalogSheet.tsx").includes("uris={bitrefillLogoCandidates(p)}"));
+  const hist = read("src/hooks/use-history.ts");
+  check("history: lists every payment AND the bill list Home counts from (same cache key), so a purchase counted on Home is never missing here", hist.includes("queryKey: ['payments', 'bill']") && hist.includes("merged.set(p.id, p)"));
+}
 check("logos: an unknown brand gets none, so the emoji shows", lg.bitrefillLogoUrl({ name: "Zxqv Unknown Shop" }) === undefined && lg.bitrefillLogoUrl({}) === undefined);
 check("logos: the brand map is the website's (a hundred brands) and every entry is a real domain", Object.keys(lg.BRAND_DOMAIN).length >= 100 && Object.values(lg.BRAND_DOMAIN).every((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)));
 check("logos: the emoji fallback depends on the section", lg.productEmoji("esim") === "📡" && lg.productEmoji("topup") === "📱" && lg.productEmoji("cards") === "🎁");
@@ -104,7 +111,7 @@ const sheet = read("src/components/dashboard/PurchasesSheet.tsx");
 check("history: a purchase row is tappable and opens its details, from the recent list and the full history", /<Pressable onPress=\{onPress\}/.test(row) && /onPress=\{\(\) => onSelect\(p\)\}/.test(sheet) && /onOpenPurchase/.test(sections) && /setSelectedPurchase\(p\)/.test(home));
 check("history: the details show the code with a copy button and the eSIM link, from the order record linked by the payment's reference", /\/api\/bitrefill\/orders/.test(sheet) && /Copy code/.test(sheet) && /Open install link/.test(sheet) && /findOrder\(orders\.data\?\.orders, payment\)/.test(sheet));
 const bsheet = read("src/components/dashboard/BitrefillCatalogSheet.tsx");
-check("Bitrefill catalog: browsed for the chosen country with the website's layout (summary card, country button, pills, filter chips, search, logo rows)", /country: country\.code/.test(bsheet) && /catalogCategory\(tab, filter\)/.test(bsheet) && /<SummaryCard/.test(bsheet) && /<CountrySelector/.test(bsheet) && /<TabPills/.test(bsheet) && /<FilterChips/.test(bsheet) && /bitrefillLogoUrl\(p\)/.test(bsheet));
+check("Bitrefill catalog: browsed for the chosen country with the website's layout (summary card, country button, pills, filter chips, search, logo rows)", /country: country\.code/.test(bsheet) && /catalogCategory\(tab, filter\)/.test(bsheet) && /<SummaryCard/.test(bsheet) && /<CountrySelector/.test(bsheet) && /<TabPills/.test(bsheet) && /<FilterChips/.test(bsheet) && /bitrefillLogoCandidates\(p\)/.test(bsheet));
 const csheet = read("src/components/dashboard/CryptorefillsCatalogSheet.tsx");
 check("Cryptorefills catalog: brands for the chosen country from the website's API, drawn with their logo on their own colour", /\/api\/cryptorefills\/brands/.test(csheet) && /country: country\.code\.toLowerCase\(\)/.test(csheet) && /background=\{b\.bg_color/.test(csheet) && /fit="contain"/.test(csheet) && /visibleBrands\(/.test(csheet));
 

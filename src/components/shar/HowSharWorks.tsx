@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { router } from 'expo-router';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
@@ -12,6 +14,12 @@ const SNAP_POINTS = ['82%'];
 /** "How Shar works": the rules as the server states them, so this sheet can't drift from what actually happens. */
 export function HowSharWorks({ open, onClose, rules }: { open: boolean; onClose: () => void; rules: SharSummary['rules'] | undefined }) {
   const r = rules;
+  // One question open at a time, the first by default; tapping the open one closes it.
+  const [openTitle, setOpenTitle] = useState<string | null>('Earn Shar');
+  const toggle = (title: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(160, 'easeInEaseOut', 'opacity'));
+    setOpenTitle((cur) => (cur === title ? null : title));
+  };
   const items: { title: string; body: string }[] = [
     {
       title: 'Earn Shar',
@@ -50,12 +58,20 @@ export function HowSharWorks({ open, onClose, rules }: { open: boolean; onClose:
         <Text style={styles.introText}>Shar is the light that guided the Seeker across the Boundary. Here it guides you through Bluvfi, and pays you back for it.</Text>
       </View>
       <View style={styles.card}>
-        {items.map((it, i) => (
-          <View key={it.title} style={[styles.item, i > 0 && styles.itemDivider]}>
-            <Text style={styles.itemTitle}>{it.title}</Text>
-            <Text style={styles.itemBody}>{it.body}</Text>
-          </View>
-        ))}
+        {items.map((it, i) => {
+          const open = openTitle === it.title;
+          return (
+            <View key={it.title} style={[styles.item, i > 0 && styles.itemDivider]}>
+              <Pressable onPress={() => toggle(it.title)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={styles.itemHead}>
+                <Text style={styles.itemTitle}>{it.title}</Text>
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                  <Path d={open ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} stroke={Colors.tx1} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </Pressable>
+              {open ? <Text style={styles.itemBody}>{it.body}</Text> : null}
+            </View>
+          );
+        })}
       </View>
       <View style={styles.note}>
         <Text style={styles.noteText}>Rules can change over time to keep Shar fair. What you have already earned stays yours.</Text>
@@ -78,10 +94,11 @@ const styles = StyleSheet.create({
   intro: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.lg },
   introText: { ...Type.body, color: Colors.tx1, flex: 1 },
   card: { backgroundColor: Colors.bg2, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
-  item: { padding: Spacing.lg, gap: 4 },
+  item: { paddingHorizontal: Spacing.lg },
+  itemHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.lg, paddingVertical: Spacing.lg },
   itemDivider: { borderTopWidth: 1, borderTopColor: Colors.border },
-  itemTitle: { ...Type.h3, color: Colors.tx0 },
-  itemBody: { ...Type.body, color: Colors.tx1 },
+  itemTitle: { ...Type.h3, color: Colors.tx0, flex: 1 },
+  itemBody: { ...Type.body, color: Colors.tx1, paddingBottom: Spacing.lg },
   note: { marginTop: Spacing.lg, backgroundColor: SharColors.tint, borderRadius: Radii.lg, borderWidth: 1, borderColor: SharColors.tintBorder, padding: Spacing.md },
   more: { alignSelf: 'center', marginTop: Spacing.lg, paddingVertical: Spacing.xs },
   moreText: { fontFamily: Fonts.sansSemiBold, fontSize: 14, color: SharColors.glow, textDecorationLine: 'underline' },

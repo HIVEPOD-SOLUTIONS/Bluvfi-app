@@ -4,7 +4,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiQuery } from '@/hooks/use-api';
 import type { BitrefillProduct } from '@/lib/api-types';
-import { bitrefillLogoUrl, productEmoji } from '@/lib/bills-logos';
+import { bitrefillLogoCandidates, productEmoji } from '@/lib/bills-logos';
 import {
   CARD_FILTERS,
   CATALOG_TABS,
@@ -95,7 +95,7 @@ export function BitrefillCatalogSheet({ open, onClose, purchasedCount, onAskAi, 
           {products.map((p) => (
             <ProductRow
               key={p.id}
-              logo={<Logo uri={bitrefillLogoUrl(p)} emoji={productEmoji(tab)} />}
+              logo={<Logo uris={bitrefillLogoCandidates(p)} emoji={productEmoji(tab)} />}
               title={p.name}
               subtitle={productSubtitle(p, tab)}
             >

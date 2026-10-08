@@ -65,6 +65,16 @@ export function bitrefillLogoUrl(product: { name?: string | null; logo_url?: str
   return product.logo_url || brandFaviconUrl(product.name);
 }
 
+/**
+ * Every logo worth trying for a product, best first. The catalog's own logo can be refused on a phone (a CDN that blocks app traffic), so the
+ * favicon follows it: the row only falls back to the emoji once all of them have failed.
+ */
+export function bitrefillLogoCandidates(product: { name?: string | null; logo_url?: string | null }): string[] {
+  if ((product.name ?? '').toLowerCase().startsWith('bitrefill')) return [BITREFILL_OFFICIAL_LOGO];
+  const all = [product.logo_url || undefined, brandFaviconUrl(product.name)];
+  return all.filter((u, i): u is string => !!u && all.indexOf(u) === i);
+}
+
 /** The emoji shown when a product has no logo, or its logo fails to load. */
 export function productEmoji(tab: 'cards' | 'topup' | 'esim'): string {
   return tab === 'esim' ? '📡' : tab === 'topup' ? '📱' : '🎁';

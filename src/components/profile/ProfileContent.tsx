@@ -11,7 +11,7 @@ import { useConnectedWallet } from '@/lib/wallet-connection';
 import { useSkrName } from '@/lib/skr';
 import { SharOrb } from '@/components/shar/SharOrb';
 import { SharColors } from '@/constants/shar';
-import { useAdminMe, useShar } from '@/hooks/use-shar';
+import { useAdminMe, useIsCreator, useShar } from '@/hooks/use-shar';
 import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
@@ -136,7 +136,9 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
   const skr = useSkrName(connectedWallet?.address);
   const shar = useShar().data;
   // Only people on the server's admin list ever see this row (the server checks again on every admin call).
-  const isAdmin = !!useAdminMe().data?.admin;
+  const isAdmin = useAdminMe().data?.admin === true;
+  // Shar rewards, Activity and Help & FAQ are for provider creators only.
+  const isCreator = useIsCreator();
   const xrpl = useXrplWallet();
   const xrplBalance = useXrpBalance(!!xrpl.address);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -248,6 +250,7 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
         </Pressable>
       ) : null}
 
+      {isCreator ? (
       <Pressable
         onPress={() => {
           onBeforeLogout?.(); // closes the Home sidebar when this is shown there
@@ -264,6 +267,7 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
         </View>
         <Text style={styles.sharGo}>›</Text>
       </Pressable>
+      ) : null}
 
       <AddressRow label="EVM WALLET" address={evmAddress} />
       <AddressRow label="SOLANA WALLET" address={solanaAddress} />
@@ -325,37 +329,41 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
         </Button>
       )}
 
-      <Pressable
-        onPress={() => {
-          onBeforeLogout?.();
-          router.push('/activity' as never);
-        }}
-        style={styles.sharRow}
-        accessibilityRole="button"
-        accessibilityLabel="Open your activity"
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sharTitle}>Activity</Text>
-          <Text style={styles.sharSub}>Shar, credits and commission in one list</Text>
-        </View>
-        <Text style={styles.sharGo}>›</Text>
-      </Pressable>
+      {isCreator ? (
+        <>
+          <Pressable
+            onPress={() => {
+              onBeforeLogout?.();
+              router.push('/activity' as never);
+            }}
+            style={styles.sharRow}
+            accessibilityRole="button"
+            accessibilityLabel="Open your activity"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sharTitle}>Activity</Text>
+              <Text style={styles.sharSub}>Shar, credits and commission in one list</Text>
+            </View>
+            <Text style={styles.sharGo}>›</Text>
+          </Pressable>
 
-      <Pressable
-        onPress={() => {
-          onBeforeLogout?.();
-          router.push('/faq' as never);
-        }}
-        style={styles.sharRow}
-        accessibilityRole="button"
-        accessibilityLabel="Help and frequently asked questions"
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sharTitle}>Help & FAQ</Text>
-          <Text style={styles.sharSub}>Answers about money, Shar and the network</Text>
-        </View>
-        <Text style={styles.sharGo}>›</Text>
-      </Pressable>
+          <Pressable
+            onPress={() => {
+              onBeforeLogout?.();
+              router.push('/faq' as never);
+            }}
+            style={styles.sharRow}
+            accessibilityRole="button"
+            accessibilityLabel="Help and frequently asked questions"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sharTitle}>Help & FAQ</Text>
+              <Text style={styles.sharSub}>Answers about money, Shar and the network</Text>
+            </View>
+            <Text style={styles.sharGo}>›</Text>
+          </Pressable>
+        </>
+      ) : null}
 
       <View style={{ height: Spacing.lg }} />
 
