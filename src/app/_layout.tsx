@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, SplashScreen } from 'expo-router';
+import { setOptions as setSplashOptions } from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
@@ -21,6 +22,8 @@ import { initRevenueCat } from '@/lib/revenuecat';
 import { initAds } from '@/lib/admob';
 
 SplashScreen.preventAutoHideAsync();
+// The splash is brand blue (like the app icon); the app itself is dark. A short crossfade makes it a hand-over, not a hard cut.
+setSplashOptions({ fade: true, duration: 300 });
 
 // Default to the onboarding carousel (not login) as this layout's initial
 // route, matching bluvfi web always showing it first when logged out.

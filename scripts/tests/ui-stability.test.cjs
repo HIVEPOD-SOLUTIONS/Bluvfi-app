@@ -50,4 +50,12 @@ const wc = read("src/lib/wallet-connection.tsx");
 check("the provider drops the in-memory connection when signed out and restores the saved one at sign-in", wc.includes("userId }: { children: ReactNode; userId?: string | null }") && /if \(!userId\) \{\s*setWallet\(null\);/.test(wc) && wc.includes("}, [userId]);"));
 check("every screen is declared exactly once in the root stack (Expo Router rejects duplicates)", (() => { const names = [...rootLayout.matchAll(/<Stack\.Screen name="([^"]+)"/g)].map((m) => m[1]); return names.length === new Set(names).size; })());
 
+// the splash: brand blue like the icon, a bigger mark, and a short fade into the dark app
+const appJson = JSON.parse(read("app.json"));
+const splashPlugin = (appJson.expo.plugins || []).find((p) => Array.isArray(p) && p[0] === "expo-splash-screen");
+const splash = splashPlugin ? splashPlugin[1] : {};
+check("the splash background is the brand blue (#0000CC), matching the app icon", String(splash.backgroundColor).toUpperCase() === "#0000CC");
+check("the splash mark is large enough to read (imageWidth >= 150)", Number(splash.imageWidth) >= 150);
+check("the splash fades out over a short crossfade, with setOptions imported from expo-splash-screen (expo-router's SplashScreen has none)", /import \{ setOptions as setSplashOptions \} from 'expo-splash-screen'/.test(rootLayout) && /setSplashOptions\(\{ fade: true, duration: 300 \}\)/.test(rootLayout));
+
 finish();
