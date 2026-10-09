@@ -15,18 +15,24 @@ try {
   audio = null;
 }
 
-/** The chime is quiet on purpose: a soft shimmer, not an alert. */
-const VOLUME = 0.5;
+/** Soft, but clearly audible at a normal media volume. */
+const VOLUME = 0.8;
 /** Opening two Shar screens in a row (Home, then Shar) plays it once, not twice. */
 export const CHIME_GAP_MS = 4_000;
 
 let player: ExpoAudio.AudioPlayer | null = null;
 let lastPlayedAt = 0;
+let modeSet = false;
 
 /** Plays Shar's chime unless it just played. Never throws: a missing sound is not worth a crash. */
 export function playSharChime(now = Date.now()): boolean {
   if (!audio || now - lastPlayedAt < CHIME_GAP_MS) return false;
   try {
+    if (!modeSet) {
+      modeSet = true;
+      // Plays over other audio and (on iPhones) with the silent switch on; a failure here must not stop the chime.
+      audio.setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'mixWithOthers' }).catch(() => {});
+    }
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     player ??= audio.createAudioPlayer(require('../../assets/sounds/shar-chime.wav'));
     player.volume = VOLUME;
@@ -34,7 +40,8 @@ export function playSharChime(now = Date.now()): boolean {
     player.play();
     lastPlayedAt = now;
     return true;
-  } catch {
+  } catch (err) {
+    console.warn('[shar] the chime could not play:', err);
     return false;
   }
 }

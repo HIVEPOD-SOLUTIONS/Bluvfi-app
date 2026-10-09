@@ -33,7 +33,7 @@ for (const [start, freq, gain] of NOTES) {
 // Normalise to a gentle peak so it never startles, and fade the very end to silence.
 let peak = 0;
 for (const s of samples) peak = Math.max(peak, Math.abs(s));
-const scale = 0.55 / peak;
+const scale = 0.85 / peak;
 const out = Buffer.alloc(44 + samples.length * 2);
 out.write("RIFF", 0);
 out.writeUInt32LE(36 + samples.length * 2, 4);

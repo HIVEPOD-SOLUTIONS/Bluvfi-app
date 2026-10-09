@@ -17,7 +17,7 @@ const seconds = wav.readUInt32LE(40) / (wav.readUInt32LE(28) || 1);
 let peak = 0;
 for (let i = 44; i + 1 < wav.length; i += 2) peak = Math.max(peak, Math.abs(wav.readInt16LE(i)));
 check("the chime is a real mono 16-bit PCM wav, between one and three seconds", wav.toString("ascii", 0, 4) === "RIFF" && wav.toString("ascii", 8, 12) === "WAVE" && wav.readUInt16LE(20) === 1 && wav.readUInt16LE(22) === 1 && wav.readUInt16LE(34) === 16 && seconds >= 1 && seconds <= 3, `${seconds}s`);
-check("the chime is gentle (peak well under full scale) and not silent", peak > 4000 && peak < 22000, String(peak));
+check("the chime is gentle (peak well under full scale) and not silent", peak > 20000 && peak < 30000, String(peak));
 check("the file is small enough to ship in the app (under 200 KB)", wav.length < 200 * 1024);
 check("the chime is made by a script in the repo, so it can be regenerated", fs.existsSync(path.join(root, "scripts/make-shar-chime.cjs")));
 
@@ -35,14 +35,14 @@ function load({ withAudio = true, throws = false } = {}) {
     "./use-shar": { useIsCreator: () => log.creator },
     "../../assets/sounds/shar-chime.wav": 7,
   };
-  if (withAudio) stubs["expo-audio"] = { createAudioPlayer: (src) => { log.created++; log.source = src; return player; } };
+  if (withAudio) stubs["expo-audio"] = { setAudioModeAsync: async () => {}, createAudioPlayer: (src) => { log.created++; log.source = src; return player; } };
   const mod = makeLoader(stubs)("src/hooks/use-shar-chime.ts");
   return { mod, log };
 }
 
 {
   const { mod, log } = load();
-  check("playing the chime makes the player once, from the bundled file, at a soft volume, from the start", mod.playSharChime(1_000_000) === true && log.created === 1 && log.source === 7 && log.volume === 0.5 && log.seeks[0] === 0 && log.played === 1);
+  check("playing the chime makes the player once, from the bundled file, at a soft volume, from the start", mod.playSharChime(1_000_000) === true && log.created === 1 && log.source === 7 && log.volume === 0.8 && log.seeks[0] === 0 && log.played === 1);
   check("a second request inside the gap does nothing (Home then Shar rings once)", mod.playSharChime(1_000_000 + mod.CHIME_GAP_MS - 1) === false && log.played === 1);
   check("after the gap it rings again, reusing the same player", mod.playSharChime(1_000_000 + mod.CHIME_GAP_MS) === true && log.played === 2 && log.created === 1);
 }
