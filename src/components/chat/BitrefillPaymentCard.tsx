@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
 import { PayFromPicker } from '@/components/wallet/PayFromPicker';
 import { useSolanaPaySource } from '@/lib/wallet-connection';
+import { useSuccessAd } from '@/hooks/use-success-ad';
 import { EVM_NETWORK_LABEL, friendlyBitrefillError, isManualMethod, payBitrefillInvoice } from '@/lib/payments/bitrefill';
 
 export interface BitrefillPendingPayment {
@@ -26,7 +27,7 @@ type State = 'idle' | 'paying' | 'done' | 'error' | 'manual';
  * amount from the user's wallet (direct token transfer, or SPL on Solana) and reports back so the assistant
  * can fetch the code. XRP and BSC USDT are paid manually to a deposit address.
  */
-export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: string; output: BitrefillPendingPayment }) {
+export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCallId: string; output: BitrefillPendingPayment; onReport?: (result: Record<string, unknown>) => void }) {
   const { getEvmWallet, getSolanaProvider, solanaAddress } = useAuth();
   const { reportToolResult } = useChatSheet();
   // Solana invoices can be paid from Bluvfi's wallet or the wallet the user connected (their choice, shown below).
@@ -34,12 +35,14 @@ export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: strin
   const [state, setState] = useState<State>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const successAd = useSuccessAd();
 
   const pm = output.paymentMethod ?? 'usdc_base';
   const currency = output.paymentCurrency || (pm.includes('usdt') ? 'USDT' : 'USDC');
 
+  // In chat the result goes back to the assistant; on the product page the page itself listens (onReport).
   const report = (result: Record<string, unknown>) =>
-    reportToolResult({ tool: 'buy_bitrefill_product', toolCallId, output: result });
+    onReport ? onReport(result) : reportToolResult({ tool: 'buy_bitrefill_product', toolCallId, output: result });
 
   const copy = async (text: string) => {
     await Clipboard.setStringAsync(text);
@@ -50,6 +53,7 @@ export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: strin
   const handlePay = async () => {
     setState('paying');
     setErrMsg(null);
+    successAd.prepare();
 
     // XRP and BSC USDT aren't paid from this wallet: show the address to send to.
     if (isManualMethod(pm)) {
@@ -85,6 +89,7 @@ export function BitrefillPaymentCard({ toolCallId, output }: { toolCallId: strin
         solanaAddress: solanaPay.address,
       });
       setState('done');
+      void successAd.show();
       report({
         paid: true,
         invoiceId: output.invoiceId,

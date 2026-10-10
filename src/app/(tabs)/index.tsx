@@ -28,6 +28,12 @@ import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
 import { CryptorefillsCatalogSheet } from '@/components/dashboard/CryptorefillsCatalogSheet';
+import { BitrefillProductSheet } from '@/components/dashboard/BitrefillProductSheet';
+import { CryptorefillsProductSheet } from '@/components/dashboard/CryptorefillsProductSheet';
+import { useBillsCountry } from '@/lib/bills-country';
+import type { BitrefillProduct as CatalogProduct } from '@/lib/api-types';
+import type { CatalogTab } from '@/lib/bitrefill-catalog';
+import type { CrBrand, CrKind } from '@/lib/cryptorefills-categories';
 import { PurchasesSheet } from '@/components/dashboard/PurchasesSheet';
 import {
   BankingSection,
@@ -93,6 +99,10 @@ export default function HomeScreen() {
   const [askText, setAskText] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [cryptorefillsOpen, setCryptorefillsOpen] = useState(false);
+  // The product page and checkout opened from either catalog (the catalog reopens behind it when it closes).
+  const [billsCountry] = useBillsCountry();
+  const [bitrefillView, setBitrefillView] = useState<{ product: CatalogProduct; tab: CatalogTab } | null>(null);
+  const [cryptorefillsView, setCryptorefillsView] = useState<{ brand: CrBrand; kind: CrKind } | null>(null);
   const [purchasesOpen, setPurchasesOpen] = useState(false);
   // The purchase whose details are showing in the history sheet (null: the list).
   const [selectedPurchase, setSelectedPurchase] = useState<Payment | null>(null);
@@ -381,29 +391,49 @@ export default function HomeScreen() {
           setCatalogOpen(false);
           openChat('Find me a good gift card for gaming or streaming');
         }}
-        onBuy={(product, catalogTab, countryName) => {
+        onBuy={(product, catalogTab) => {
           setCatalogOpen(false);
-          const request =
-            catalogTab === 'topup'
-              ? `top up with ${product.name}`
-              : catalogTab === 'esim'
-                ? `get the ${product.name} eSIM plan`
-                : `buy a ${product.name} gift card`;
-          openChat(`I want to ${request} from Bitrefill for ${countryName}.`);
+          setBitrefillView({ product, tab: catalogTab });
+        }}
+      />
+      <BitrefillProductSheet
+        open={!!bitrefillView}
+        onClose={() => {
+          setBitrefillView(null);
+          setCatalogOpen(true);
+        }}
+        product={bitrefillView?.product ?? null}
+        section={bitrefillView?.tab ?? 'cards'}
+        country={billsCountry}
+        onAskAi={(product) => {
+          const tab = bitrefillView?.tab ?? 'cards';
+          setBitrefillView(null);
+          const request = tab === 'topup' ? `top up with ${product.name}` : tab === 'esim' ? `get the ${product.name} eSIM plan` : `buy a ${product.name} gift card`;
+          openChat(`I want to ${request} from Bitrefill for ${billsCountry.name}.`);
         }}
       />
       <CryptorefillsCatalogSheet
         open={cryptorefillsOpen}
         onClose={() => setCryptorefillsOpen(false)}
-        onBuy={(brand, kind, countryName) => {
+        onBuy={(brand, kind) => {
           setCryptorefillsOpen(false);
-          const request =
-            kind === 'topup'
-              ? `top up with ${brand.brand_name}`
-              : kind === 'esim'
-                ? `get a ${brand.brand_name} eSIM plan`
-                : `buy a ${brand.brand_name} gift card`;
-          openChat(`I want to ${request} from Cryptorefills for ${countryName}.`);
+          setCryptorefillsView({ brand, kind });
+        }}
+      />
+      <CryptorefillsProductSheet
+        open={!!cryptorefillsView}
+        onClose={() => {
+          setCryptorefillsView(null);
+          setCryptorefillsOpen(true);
+        }}
+        brand={cryptorefillsView?.brand ?? null}
+        kind={cryptorefillsView?.kind ?? 'cards'}
+        country={billsCountry}
+        onAskAi={(brand) => {
+          const kind = cryptorefillsView?.kind ?? 'cards';
+          setCryptorefillsView(null);
+          const request = kind === 'topup' ? `top up with ${brand.brand_name}` : kind === 'esim' ? `get a ${brand.brand_name} eSIM plan` : `buy a ${brand.brand_name} gift card`;
+          openChat(`I want to ${request} from Cryptorefills for ${billsCountry.name}.`);
         }}
       />
     </View>

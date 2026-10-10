@@ -94,3 +94,73 @@ export async function showRewardedAd(
     return 'unavailable';
   }
 }
+
+// ── Interstitial: the "successful payment" ad ─────────────────────────────────────────────────────────────
+
+/** bluvfi's interstitial ad unit, named "successful payment" in the AdMob console (same AdMob app as the rewarded unit). */
+export const INTERSTITIAL_AD_ID = 'ca-app-pub-4986320440788963/6729693281';
+/** Free accounts see at most one of these every so often, so a run of purchases doesn't become a run of ads. */
+export const INTERSTITIAL_COOLDOWN_MS = 90_000;
+const INTERSTITIAL_LOAD_TIMEOUT_MS = 8_000;
+
+/** Pure: whether a successful payment should be followed by an ad. Premium never sees one; nor does anyone inside the cooldown. */
+export function shouldShowSuccessAd(input: { premium: boolean; now: number; lastShownAt: number }): boolean {
+  return !input.premium && input.now - input.lastShownAt >= INTERSTITIAL_COOLDOWN_MS;
+}
+
+let lastInterstitialAt = 0;
+type PreparedInterstitial = { ad: import('react-native-google-mobile-ads').InterstitialAd; ready: Promise<boolean> };
+let prepared: PreparedInterstitial | null = null;
+
+/** Starts loading the next interstitial (call when a payment begins, so it is ready when the payment lands). Fails soft. */
+export function prepareInterstitialAd(): void {
+  if (prepared) return;
+  void (async () => {
+    try {
+      if (!(await initAds())) return;
+      const { InterstitialAd, AdEventType } = require('react-native-google-mobile-ads') as typeof import('react-native-google-mobile-ads');
+      const ad = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_ID);
+      const ready = new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), INTERSTITIAL_LOAD_TIMEOUT_MS);
+        ad.addAdEventListener(AdEventType.LOADED, () => {
+          clearTimeout(timer);
+          resolve(true);
+        });
+        ad.addAdEventListener(AdEventType.ERROR, (err) => {
+          console.warn('[AdMob] interstitial error:', err);
+          clearTimeout(timer);
+          resolve(false);
+        });
+      });
+      prepared = { ad, ready };
+      ad.load();
+    } catch (err) {
+      console.warn('[AdMob] interstitial prepare error:', err);
+      prepared = null;
+    }
+  })();
+}
+
+/**
+ * Shows the "successful payment" interstitial if it should be shown (not Premium, not just shown one) and one is ready or loads quickly.
+ * Resolves true when an ad was shown. Never throws, and never delays the caller by more than a few seconds.
+ */
+export async function showSuccessAd(premium: boolean): Promise<boolean> {
+  const now = Date.now();
+  if (!shouldShowSuccessAd({ premium, now, lastShownAt: lastInterstitialAt })) return false;
+  if (!prepared) prepareInterstitialAd();
+  try {
+    // prepareInterstitialAd is async: give it a moment to create the ad.
+    for (let i = 0; i < 20 && !prepared; i++) await new Promise((r) => setTimeout(r, 100));
+    const current = prepared;
+    if (!current) return false;
+    prepared = null; // an interstitial can be shown only once
+    if (!(await current.ready)) return false;
+    lastInterstitialAt = Date.now();
+    await current.ad.show();
+    return true;
+  } catch (err) {
+    console.warn('[AdMob] interstitial show error:', err);
+    return false;
+  }
+}

@@ -8,6 +8,7 @@ import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
+import { useSuccessAd } from '@/hooks/use-success-ad';
 import { PayFromPicker } from '@/components/wallet/PayFromPicker';
 import { useSolanaPaySource } from '@/lib/wallet-connection';
 import { sendFromWallet, walletRailFor } from '@/lib/payments/wallet-send';
@@ -70,7 +71,7 @@ type State = 'idle' | CrPayStep | 'confirmPrice' | 'polling' | 'deposit' | 'done
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
-export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: string; output: Output }) {
+export function CryptorefillsPaymentCard({ toolCallId, output, onReport }: { toolCallId: string; output: Output; onReport?: (result: Record<string, unknown>) => void }) {
   const { getAccessToken, getEvmProvider, getEvmWallet, getSolanaProvider, evmAddress, solanaAddress } = useAuth();
   const { reportToolResult } = useChatSheet();
   // Solana payments can come from Bluvfi's wallet or the wallet the user connected (their choice, shown below).
@@ -90,6 +91,9 @@ export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: s
   const [depositState, setDepositState] = useState('awaiting_payment');
   const [priceConfirm, setPriceConfirm] = useState<{ amount: number; resolve: (ok: boolean) => void } | null>(null);
   const abort = useRef(new AbortController());
+  const successAd = useSuccessAd();
+  // Only a payment made in this session gets the ad (not an old, completed order shown again).
+  const paidHere = useRef(false);
 
   useEffect(() => {
     const controller = abort.current;
@@ -98,12 +102,18 @@ export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: s
 
   const refetchPayments = () => queryClient.invalidateQueries({ queryKey: ['payments'] });
   const report = (result: Record<string, unknown>) =>
-    reportToolResult({ tool: 'buy_cryptorefills_product', toolCallId, output: { ...output, ...result } });
+    onReport ? onReport({ ...output, ...result }) : reportToolResult({ tool: 'buy_cryptorefills_product', toolCallId, output: { ...output, ...result } });
 
   const finish = (o: CrOrderStatus) => {
     setOrder(o);
     refetchPayments();
-    if (o.status === 'completed') setState('done');
+    if (o.status === 'completed') {
+      setState('done');
+      if (paidHere.current) {
+        paidHere.current = false;
+        void successAd.show();
+      }
+    }
     else {
       setState('error');
       setMsg(
@@ -259,6 +269,8 @@ export function CryptorefillsPaymentCard({ toolCallId, output }: { toolCallId: s
   const confirm = async () => {
     setMsg(null);
     setNote(null);
+    paidHere.current = true;
+    successAd.prepare();
     try {
       try {
         if (payWith === 'other') await confirmOther();

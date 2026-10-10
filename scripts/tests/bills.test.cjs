@@ -105,7 +105,7 @@ check("scrolling: the catalog's pill and chip rows and the wallet's tab row use 
 const sections = read("src/components/dashboard/DashboardSections.tsx");
 check("Bills > Browse lists both providers, with the website's badges", /onOpenBitrefill/.test(sections) && /onOpenCryptorefills/.test(sections) && sections.includes("USDC · No gas") && sections.includes(">Bitrefill<") && sections.includes(">Cryptorefills<") && sections.includes("10,000+ brands in 180 countries"));
 const home = read("src/app/(tabs)/index.tsx");
-check("Home opens the Cryptorefills sheet from Browse and hands a chosen product to the assistant with its country", /<CryptorefillsCatalogSheet/.test(home) && /onOpenCryptorefills=\{\(\) => setCryptorefillsOpen\(true\)\}/.test(home) && /from Cryptorefills for \$\{countryName\}/.test(home) && /from Bitrefill for \$\{countryName\}/.test(home));
+check("Home opens the Cryptorefills sheet from Browse; a chosen product opens its page, and 'ask the assistant' hands it over with its country", /<CryptorefillsCatalogSheet/.test(home) && /onOpenCryptorefills=\{\(\) => setCryptorefillsOpen\(true\)\}/.test(home) && /from Cryptorefills for \$\{billsCountry\.name\}/.test(home) && /from Bitrefill for \$\{billsCountry\.name\}/.test(home));
 const row = read("src/components/dashboard/PurchaseRow.tsx");
 const sheet = read("src/components/dashboard/PurchasesSheet.tsx");
 check("history: a purchase row is tappable and opens its details, from the recent list and the full history", /<Pressable onPress=\{onPress\}/.test(row) && /onPress=\{\(\) => onSelect\(p\)\}/.test(sheet) && /onOpenPurchase/.test(sections) && /setSelectedPurchase\(p\)/.test(home));
