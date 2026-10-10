@@ -43,6 +43,7 @@
       "expo-apple-authentication",
       "./plugins/with-limited-cpp-parallelism",
       "./plugins/with-release-signing",
+      "./plugins/with-native-clean-order",
       [
         "react-native-google-mobile-ads",
         {
