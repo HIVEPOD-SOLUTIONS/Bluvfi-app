@@ -118,6 +118,15 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
   const sheet = read(app, "src/components/chat/ChatSheet.tsx");
   const pkg = read(app, "package.json");
   check("ads: the rewarded button says what the prompt says, Premium has no ad button, and the prompt knows the successful-payment interstitial (free accounts only, with its cooldown)", sheet.includes("Watch Ad — Get More Messages") && prompt.includes('"Watch Ad — Get More Messages"') && sheet.includes("{!isPremium && (") && read(app, "src/lib/admob.ts").includes("Interstitial") && prompt.includes("free accounts see a short full-screen ad after a successful payment") && prompt.includes("Bluvfi Premium never sees it") && prompt.includes("about once every 90 seconds") && !prompt.includes("no interstitial ads after purchases"));
+  check("sound: the prompt describes Shar's voice (varied phrases, richer ones for Seekers, creators only)", prompt.includes("a short musical phrase") && prompt.includes("Seekers have their own richer ones"));
+  {
+    // every screen a person can open from the app has a link the assistant may use, so a new screen can't be forgotten
+    const screens = fs.readdirSync(path.join(app, "src/app")).filter((n) => n.endsWith(".tsx") && !n.startsWith("_")).map((n) => n.replace(".tsx", ""));
+    const internal = new Set(["login", "onboarding", "oauth-callback", "provider"]);
+    const need = screens.filter((n) => !internal.has(n));
+    const missing = need.filter((n) => !prompt.includes("bluvfi://" + n));
+    check("every screen in the app (" + need.join(", ") + ") has a bluvfi:// link in the prompt", missing.length === 0, "missing: " + missing.join(", "));
+  }
   check("ads: the cooldown the prompt names is the one the app uses", read(app, "src/lib/admob.ts").includes("INTERSTITIAL_COOLDOWN_MS = 90_000"));
   check("bills: the prompt describes the product pages (description, how to redeem, reviews, one-tap USDC) for both providers", prompt.includes("opens its own page in the app") && prompt.includes("accepted payment methods, reviews and terms") && prompt.includes("one-tap USDC payment") && prompt.includes("Cryptorefills works the same way"));
   check("notifications: the app has no push notifications, as the prompt says", !pkg.includes("expo-notifications") && prompt.includes("no push notifications yet"));
