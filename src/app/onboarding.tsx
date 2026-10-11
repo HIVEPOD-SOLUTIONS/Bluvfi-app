@@ -1,16 +1,18 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type ComponentType } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { OrbIllustration, ShieldIllustration, VouchersIllustration } from '@/components/onboarding/illustrations';
+import { CreatorIllustration, OrbIllustration, ShieldIllustration, VouchersIllustration } from '@/components/onboarding/illustrations';
 import { Button } from '@/components/ui/Button';
 import { ReferralCodeSheet } from '@/components/shar/ReferralCodeSheet';
 import { getPendingReferral } from '@/lib/referral';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
+import { SharColors } from '@/constants/shar';
 
-/** Same three themes as bluvfi web's onboarding, laid out like the reference: illustration, chip, heading. */
-const SLIDES = [
+/** Core onboarding themes, laid out like the reference: illustration, chip, heading. */
+type Slide = { chip: string; heading: string; body?: string; ctaLabel?: string; Illustration: ComponentType; creator?: boolean };
+const SLIDES: Slide[] = [
   {
     chip: 'Welcome to Bluvfi',
     heading: 'Your AI finance\nassistant for global\nweb3 workers',
@@ -20,6 +22,14 @@ const SLIDES = [
     chip: 'Bills & investments',
     heading: 'Pay bills and invest,\npowered by USDC',
     Illustration: VouchersIllustration,
+  },
+  {
+    chip: 'Open Program',
+    heading: 'Earn SKR when your\nservice helps people\nand AI agents',
+    body: 'Offer a service people and AI agents can use. Keep 80% of paid calls.',
+    ctaLabel: 'Join the open program',
+    Illustration: CreatorIllustration,
+    creator: true,
   },
   {
     chip: 'Non-custodial',
@@ -58,6 +68,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const scrollX = useRef(new Animated.Value(0)).current;
   const [referralOpen, setReferralOpen] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [referral, setReferral] = useState<string | null>(null);
 
   // A code saved earlier (or from a friend's link) shows here, so they know it will be applied.
@@ -66,6 +77,9 @@ export default function OnboardingScreen() {
       getPendingReferral().then(setReferral);
     }, []),
   );
+
+  const activeSlide = SLIDES[slideIndex] ?? SLIDES[0];
+  const createParams = activeSlide.creator ? { mode: 'signup', next: 'creator' } : { mode: 'signup' };
 
   const thumbTranslate = scrollX.interpolate({
     inputRange: [0, width * (SLIDES.length - 1)],
@@ -83,6 +97,7 @@ export default function OnboardingScreen() {
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
+        onMomentumScrollEnd={(event) => setSlideIndex(Math.round(event.nativeEvent.contentOffset.x / width))}
         style={styles.slides}
       >
         {SLIDES.map((slide) => (
@@ -96,13 +111,14 @@ export default function OnboardingScreen() {
             <View style={styles.chip}>
               <Text style={styles.chipText}>{slide.chip}</Text>
             </View>
-            <Text style={styles.heading}>{slide.heading}</Text>
+            <Text style={[styles.heading, slide.body && styles.headingWithBody]}>{slide.heading}</Text>
+            {slide.body ? <Text style={styles.body}>{slide.body}</Text> : null}
           </View>
         ))}
       </Animated.ScrollView>
 
       <View style={styles.track}>
-        <Animated.View style={[styles.thumb, { transform: [{ translateX: thumbTranslate }] }]} />
+        <Animated.View style={[styles.thumb, { backgroundColor: activeSlide.creator ? SharColors.glow : Colors.blue, transform: [{ translateX: thumbTranslate }] }]} />
       </View>
 
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, Spacing.lg) + Spacing.sm }]}>
@@ -110,9 +126,9 @@ export default function OnboardingScreen() {
           size="lg"
           fullWidth
           iconRight={<ArrowRight />}
-          onPress={() => router.push({ pathname: '/login', params: { mode: 'signup' } })}
+          onPress={() => router.push({ pathname: '/login', params: createParams })}
         >
-          Create Account
+          {activeSlide.ctaLabel ?? 'Create Account'}
         </Button>
         <Button
           variant="outline"
@@ -174,6 +190,14 @@ const styles = StyleSheet.create({
     fontSize: 30, // three short lines per slide; 34 would wrap "assistant for global" on narrow phones
     lineHeight: 36,
     color: Colors.tx0,
+    marginBottom: Spacing.xl,
+  },
+  headingWithBody: {
+    marginBottom: Spacing.sm,
+  },
+  body: {
+    ...Type.body,
+    color: Colors.tx1,
     marginBottom: Spacing.xl,
   },
   track: {

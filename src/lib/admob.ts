@@ -100,7 +100,7 @@ export async function showRewardedAd(
 /** bluvfi's interstitial ad unit, named "successful payment" in the AdMob console (same AdMob app as the rewarded unit). */
 export const INTERSTITIAL_AD_ID = 'ca-app-pub-4986320440788963/6729693281';
 /** Free accounts see at most one of these every so often, so a run of purchases doesn't become a run of ads. */
-export const INTERSTITIAL_COOLDOWN_MS = 90_000;
+export const INTERSTITIAL_COOLDOWN_MS = 30_000;
 const INTERSTITIAL_LOAD_TIMEOUT_MS = 8_000;
 
 /** Pure: whether a successful payment should be followed by an ad. Premium never sees one; nor does anyone inside the cooldown. */

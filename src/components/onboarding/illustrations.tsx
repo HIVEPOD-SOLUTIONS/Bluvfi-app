@@ -1,5 +1,6 @@
 import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, RadialGradient, Stop, Rect, Circle, Ellipse, Path, Text as SvgText } from 'react-native-svg';
 import { Colors, Fonts } from '@/constants/theme';
+import { SharColors } from '@/constants/shar';
 import { CRYPTO_LOGOS, MERCHANT_LOGOS } from './logos';
 
 /**
@@ -318,7 +319,62 @@ export function VouchersIllustration() {
   );
 }
 
-/** Slide 3 — concentric arcs around a shield. */
+/** Slide 3 — creator providers orbiting an SKR payout. */
+export function CreatorIllustration() {
+  const nodes = [
+    { x: 88, y: 98, r: 22, label: 'API' },
+    { x: 272, y: 92, r: 20, label: '{}' },
+    { x: 82, y: 218, r: 18, label: '$' },
+    { x: 278, y: 214, r: 22, label: 'AI' },
+  ];
+  return (
+    <Svg width="100%" height="100%" viewBox={VIEWBOX} preserveAspectRatio="xMidYMid meet">
+      <Defs>
+        <RadialGradient id="creator-core" cx="0.35" cy="0.28" r="0.85">
+          <Stop offset="0" stopColor={SharColors.core} />
+          <Stop offset="0.58" stopColor={SharColors.glow} />
+          <Stop offset="1" stopColor={SharColors.deep} />
+        </RadialGradient>
+        <LinearGradient id="creator-link" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={SharColors.glow} stopOpacity="0.95" />
+          <Stop offset="1" stopColor={Colors.blue} stopOpacity="0.55" />
+        </LinearGradient>
+      </Defs>
+
+      <Ellipse cx={180} cy={156} rx={126} ry={82} fill="none" stroke={SharColors.tintBorder} strokeWidth={2} strokeDasharray="5 8" />
+      <Ellipse cx={180} cy={156} rx={92} ry={118} fill="none" stroke={Colors.border} strokeWidth={1.5} transform="rotate(32 180 156)" />
+      {nodes.map((n) => (
+        <Path key={`line-${n.label}`} d={`M180 156 L${n.x} ${n.y}`} stroke="url(#creator-link)" strokeWidth={2.5} strokeLinecap="round" opacity={0.75} />
+      ))}
+
+      <Circle cx={180} cy={156} r={64} fill="url(#creator-core)" />
+      <Circle cx={180} cy={156} r={64} fill="none" stroke={SharColors.haloInner} strokeOpacity={0.7} strokeWidth={2} />
+      <SvgText x={180} y={151} textAnchor="middle" fontFamily={Fonts.monoBold} fontSize={28} fill={Colors.tx0}>
+        SKR
+      </SvgText>
+      <SvgText x={180} y={176} textAnchor="middle" fontFamily={Fonts.sansRegular} fontSize={12} fill={Colors.tx0} opacity={0.85}>
+        creator payouts
+      </SvgText>
+
+      {nodes.map((n) => (
+        <G key={n.label}>
+          <Circle cx={n.x} cy={n.y} r={n.r + 8} fill={SharColors.tint} opacity={0.8} />
+          <Circle cx={n.x} cy={n.y} r={n.r} fill={Colors.bg1} stroke={SharColors.tintBorder} strokeWidth={2} />
+          <SvgText x={n.x} y={n.y + 5} textAnchor="middle" fontFamily={Fonts.monoBold} fontSize={n.label.length > 2 ? 12 : 15} fill={Colors.tx0}>
+            {n.label}
+          </SvgText>
+        </G>
+      ))}
+
+      <Path d="M122 48 C146 28 214 28 238 48" stroke={SharColors.glow} strokeWidth={4} strokeLinecap="round" opacity={0.65} />
+      <Path d="M122 264 C146 284 214 284 238 264" stroke={Colors.blue} strokeWidth={4} strokeLinecap="round" opacity={0.55} />
+      <Arrow x={63} y={154} rot={-90} color={SharColors.glow} scale={0.95} />
+      <Arrow x={297} y={154} rot={90} color={Colors.blue} scale={0.95} />
+    </Svg>
+  );
+}
+
+/** Slide 4 — concentric arcs around a shield. */
 export function ShieldIllustration() {
   const arcs = [
     { r: 150, w: 30, sx: 57.1, sy: 143.9, ex: 302.9 },

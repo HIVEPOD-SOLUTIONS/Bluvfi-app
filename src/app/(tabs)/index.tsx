@@ -46,6 +46,7 @@ import { getTimeBasedGreeting } from '@/lib/greeting';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { useApiQuery } from '@/hooks/use-api';
+import { normalizeStatus } from '@/hooks/use-history';
 import type { Payment } from '@/lib/api-types';
 import { useStocksPortfolio, type StockRow } from '@/hooks/use-stocks';
 
@@ -122,7 +123,7 @@ export default function HomeScreen() {
   // Real holdings: US stocks and ETFs traded through Backpack (the same /api/stocks the Invest tab uses).
   const { data: stocksPortfolio } = useStocksPortfolio();
 
-  const purchasedCount = billPayments?.payments.filter((p) => p.status === 'completed').length ?? 0;
+  const purchasedCount = billPayments?.payments.filter((p) => normalizeStatus(p.status) === 'completed').length ?? 0;
   const portfolioValue = stocksPortfolio?.totalUsd ?? 0;
   const positionCount = stocksPortfolio?.positions.length ?? 0;
   const greeting = getTimeBasedGreeting();

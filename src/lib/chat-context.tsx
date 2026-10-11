@@ -5,6 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useApiQuery } from '@/hooks/use-api';
 import { useBalances } from '@/hooks/use-balances';
+import { normalizeStatus } from '@/hooks/use-history';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { API_BASE_URL } from '@/lib/api';
 import type { Payment } from '@/lib/api-types';
@@ -89,7 +90,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     xrpBalanceClient: xrp.balance ?? undefined,
     totalBillsDueUsd: 0,
     portfolioValueUsd: stocksPortfolio?.totalUsd,
-    billCount: billPayments?.payments.filter((p) => p.status === 'completed').length,
+    billCount: billPayments?.payments.filter((p) => normalizeStatus(p.status) === 'completed').length,
     // Lets the server describe this app (screens, Banking coming soon, connected wallet) instead of the website or the older
     // WebView app. The wallet is only a name and an address: nothing the agent could sign with.
     client: 'expo-android',

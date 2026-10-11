@@ -63,7 +63,7 @@ function describeError(friendly: string, err: unknown): string {
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, next } = useLocalSearchParams<{ mode?: string; next?: string }>();
   const isLogin = mode === 'login';
   const {
     isAuthenticated,
@@ -83,8 +83,9 @@ export default function LoginScreen() {
   // screen off this one (same quirk as on logout). If Privy has a session, go to the app explicitly —
   // otherwise the user is left here, and re-submitting the code errors with "Already logged in".
   useEffect(() => {
-    if (isAuthenticated) router.replace('/(tabs)');
-  }, [isAuthenticated]);
+    if (!isAuthenticated) return;
+    router.replace(next === 'creator' ? '/creator' : '/(tabs)');
+  }, [isAuthenticated, next]);
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');

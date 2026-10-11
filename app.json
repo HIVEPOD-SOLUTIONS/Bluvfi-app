@@ -5,7 +5,7 @@
   "expo": {
     "name": "Bluvfi",
     "slug": "bluvfi",
-    "version": "6.0.4",
+    "version": "6.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bluvfi",
@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.bluvfi.xyz",
-      "versionCode": 700,
+      "versionCode": 701,
       "adaptiveIcon": {
         "backgroundColor": "#0000CC",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
