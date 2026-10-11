@@ -118,6 +118,13 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
   const sheet = read(app, "src/components/chat/ChatSheet.tsx");
   const pkg = read(app, "package.json");
   check("ads: the rewarded button says what the prompt says, Premium has no ad button, and the prompt knows the successful-payment interstitial (free accounts only, with its cooldown)", sheet.includes("Watch Ad — Get More Messages") && prompt.includes('"Watch Ad — Get More Messages"') && sheet.includes("{!isPremium && (") && read(app, "src/lib/admob.ts").includes("Interstitial") && prompt.includes("free accounts see a short full-screen ad after a successful payment") && prompt.includes("Bluvfi Premium never sees it") && prompt.includes("about once every 30 seconds") && !prompt.includes("no interstitial ads after purchases"));
+  {
+    const appJson = JSON.parse(read(app, "app.json"));
+    const adPlugin = appJson.expo.plugins.find((p) => Array.isArray(p) && p[0] === "react-native-google-mobile-ads");
+    // Expo warns that the root-level key is "ignored", but the ads library's own Gradle build reads its app id from it: without it the Android
+    // build stops with "Cannot get property 'googleMobileAdsJson'". So it stays, and must match the plugin's id.
+    check("ads: the AdMob app id is in the Expo plugin AND the root-level key the library's Android Gradle build reads (both the same id)", adPlugin && adPlugin[1].androidAppId === "ca-app-pub-4986320440788963~9278420291" && appJson["react-native-google-mobile-ads"] && appJson["react-native-google-mobile-ads"].android_app_id === "ca-app-pub-4986320440788963~9278420291");
+  }
   check("sound: the prompt describes Shar's voice (varied phrases, richer ones for Seekers, creators only)", prompt.includes("a short musical phrase") && prompt.includes("Seekers have their own richer ones"));
   {
     // every screen a person can open from the app has a link the assistant may use, so a new screen can't be forgotten
@@ -128,7 +135,8 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
     check("every screen in the app (" + need.join(", ") + ") has a bluvfi:// link in the prompt", missing.length === 0, "missing: " + missing.join(", "));
   }
   check("ads: the cooldown the prompt names is the one the app uses", read(app, "src/lib/admob.ts").includes("INTERSTITIAL_COOLDOWN_MS = 30_000"));
-  check("bills: the prompt describes the product pages (description, how to redeem, reviews, one-tap USDC) for both providers", prompt.includes("opens its own page in the app") && prompt.includes("accepted payment methods, reviews and terms") && prompt.includes("one-tap USDC payment") && prompt.includes("Cryptorefills works the same way"));
+  check("bills: the prompt describes the product pages (description, how to redeem, reviews, token/chain payment choices) for both providers", prompt.includes("opens its own page in the app") && prompt.includes("accepted payment methods, reviews and terms") && prompt.includes("accepted token and chain") && prompt.includes("shows its exact deposit address, amount and a QR") && prompt.includes("each with its logo") && prompt.includes("Cryptorefills works the same way"));
+  check("bills: the prompt knows the Bitrefill page uses the web-like checkout stages", ["Top-up details", "Delivery details", "Send as a Gift", "Pay with chips", "Sending to", "Receipt to", "Code sent to"].every((t) => prompt.includes(t)));
   check("notifications: the app has no push notifications, as the prompt says", !pkg.includes("expo-notifications") && prompt.includes("no push notifications yet"));
   check("voice: the permission message and the settings hand-off the prompt describes exist in the app", read(app, "src/hooks/use-voice-input.ts").includes("Microphone access is off") && read(app, "src/hooks/use-voice-input.ts").includes("openSettings") && prompt.includes("Microphone access is off"));
   check("Premium: the app really has an upgrade path in Profile, as the prompt says", read(app, "src/app/(tabs)/profile.tsx").includes("onUpgrade") && prompt.includes("Bluvfi Premium (Profile, Upgrade)"));
@@ -139,7 +147,7 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
 {
   const card = read(app, "src/components/chat/BitrefillPaymentCard.tsx");
   const wd = read(app, "src/components/invest/StockWithdrawSheet.tsx");
-  check("Bitrefill card: USDC one tap (Base/Solana with Pay from on Solana), manual XRP and BSC USDT, and no 'Pay from my wallet' button, as the prompt says", prompt.includes("Paying a Bitrefill purchase in this app") && card.includes("pm === 'usdt_bsc'") && card.includes("pm === 'xrp'") && card.includes("pm.includes('solana') ? <PayFromPicker") && !card.includes("Pay from my wallet"));
+  check("Bitrefill card: supported wallet rails plus generic manual deposit rails, and no 'Pay from my wallet' button, as the prompt says", prompt.includes("Paying a Bitrefill purchase in this app") && prompt.includes("accepted token and chain choices") && prompt.includes("I've sent it") && card.includes("tokenForMethod") && card.includes("manualTransferRequired") && card.includes("isManualMethod(pm)") && card.includes("pm.includes('solana') ? <PayFromPicker") && !card.includes("Pay from my wallet"));
   check("stock credit withdrawal: the $1 minimum the prompt gives is the sheet's", prompt.includes("(minimum $1)") && wd.includes("Number(amount) >= 1"));
 }
 check("the agent knows about the team's question on a listing", prompt.includes("teamQuestion") && prompt.includes("declinedBecause"));

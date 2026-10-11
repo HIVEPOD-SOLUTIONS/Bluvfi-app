@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { Children, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors, Fonts, Radii } from '@/constants/theme';
@@ -78,11 +78,17 @@ export function Button({
         {!loading && variant === 'premium' && <SparkleIcon color={v.text} />}
         {!loading && iconLeft}
         {!loading &&
-          (typeof children === 'string' ? (
-            <Text style={[styles.text, { color: v.text, fontSize: s.fontSize }]}>{children}</Text>
-          ) : (
-            children
-          ))}
+          Children.toArray(children).map((child, index) =>
+            typeof child === 'string' || typeof child === 'number' ? (
+              String(child).trim() ? (
+                <Text key={index} style={[styles.text, { color: v.text, fontSize: s.fontSize }]}>
+                  {child}
+                </Text>
+              ) : null
+            ) : (
+              child
+            ),
+          )}
         {!loading && iconRight}
       </View>
     </Pressable>

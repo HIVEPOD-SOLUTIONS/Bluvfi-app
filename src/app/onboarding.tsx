@@ -26,7 +26,7 @@ const SLIDES: Slide[] = [
   {
     chip: 'Open Program',
     heading: 'Earn SKR when your\nservice helps people\nand AI agents',
-    body: 'Offer a service people and AI agents can use. Keep 80% of paid calls.',
+    body: 'Offer a service people and AI agents can use. Seeker creators can become official Bluvfi providers.',
     ctaLabel: 'Join the open program',
     Illustration: CreatorIllustration,
     creator: true,

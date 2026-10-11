@@ -342,6 +342,7 @@ export function ProviderFormScreen({ remixId, editId }: { remixId?: string; edit
             </Card>
           ) : (
             <>
+              {!editing ? <Notice>If you’re a Seeker creator, choose the category carefully: after review, Bluvfi can place an approved provider in the official Bills, Invest or Banking provider list for that use case. Other approved providers stay discoverable in the open network.</Notice> : null}
               {remixOf ? <Notice>Building on <Text style={{ color: Colors.tx0 }}>{remixOf.name}</Text>. Your version is listed on its own and credits the original.</Notice> : null}
               {editing && editing.reviewNote && editing.status === 'submitted' ? (
                 <Notice tone="amber">
@@ -389,6 +390,7 @@ export function ProviderFormScreen({ remixId, editId }: { remixId?: string; edit
                     </Chip>
                   ))}
                 </View>
+                <Text style={styles.hint}>This decides where the provider belongs. Seeker creators may be promoted into official Bluvfi surfaces by use case after review.</Text>
                 <Label>API endpoint</Label>
                 <Input mono value={endpoint} onChangeText={setEndpoint} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://api.yourservice.com/v1" />
                 <Text style={styles.hint}>A public https address. Requests reach it through Bluvfi as a POST with a JSON body, and the team checks it before it goes live.</Text>

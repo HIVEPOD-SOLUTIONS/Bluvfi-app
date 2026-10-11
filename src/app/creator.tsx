@@ -108,12 +108,13 @@ export default function CreatorScreen() {
               {mode === 'signup' ? (
                 <Card title="List your own providers">
                   <Text style={styles.intro}>
-                    It’s optional. You can use every provider on the network without this. Sign up if you run an API or service people (or their AI agents) should be able to call:
+                    It’s optional. You can use every provider on the network without this. Sign up if you offer a service, tool or protocol people (or their AI agents) should be able to call:
                   </Text>
                   <Text style={styles.bullet}>• You keep 80% of what people pay per call, withdrawn as SKR once you have $5.</Text>
                   <Text style={styles.bullet}>• You earn Shar every time someone uses your provider.</Text>
                   <Text style={styles.bullet}>• The Bluvfi team checks each provider before it goes live.</Text>
-                  <Text style={styles.hint}>It’s free and takes a minute. You tell us who’s behind it and how to reach you, and agree to the provider terms once.</Text>
+                  <Text style={styles.bullet}>• If you’re a Seeker creator, an approved provider can be promoted into Bluvfi’s official Bills, Invest or Banking provider list for its use case.</Text>
+                  <Text style={styles.hint}>It’s free and takes a minute. You tell us who’s behind it, how to reach you and which use case it belongs to, then agree to the provider terms once.</Text>
                 </Card>
               ) : null}
               {mode === 'agree' ? <Notice tone="amber">The provider terms have changed. Read them and agree again to add another provider. Your current providers keep working.</Notice> : null}

@@ -97,34 +97,25 @@ export function htmlToText(html: string | null | undefined): string {
 
 // ── Payment methods ─────────────────────────────────────────────────────────────────────────────────────────
 
-/** The two ways the app pays straight from the Bluvfi wallet in one tap. */
-export const WALLET_METHODS: readonly { id: 'usdc_base' | 'usdc_solana'; label: string; note: string }[] = [
-  { id: 'usdc_base', label: 'USDC · Base', note: 'No gas needed' },
-  { id: 'usdc_solana', label: 'USDC · Solana', note: 'From your Bluvfi or connected wallet' },
-];
+// The catalogue of methods, their rails and logos live in payment-methods.ts and payment-logos.ts.
+/** A Bitrefill payment method id, exactly as the invoice API takes it (see payment-methods.ts). */
+export type BitrefillPaymentMethodId = string;
 
 const METHOD_LABELS: Record<string, string> = {
   usdc_base: 'USDC (Base)', usdc_solana: 'USDC (Solana)', usdc_erc20: 'USDC (Ethereum)', usdc_polygon: 'USDC (Polygon)', usdc_arbitrum: 'USDC (Arbitrum)',
-  usdc_optimism: 'USDC (Optimism)', usdt_erc20: 'USDT (Ethereum)', usdt_polygon: 'USDT (Polygon)', usdt_arbitrum: 'USDT (Arbitrum)', usdt_bsc: 'USDT (BSC)',
-  usdt_tron: 'USDT (Tron)', usdt_ton: 'USDT (TON)', usdt_solana: 'USDT (Solana)', ethereum: 'Ethereum', eth_base: 'ETH (Base)', eth_arbitrum: 'ETH (Arbitrum)',
+  usdc_optimism: 'USDC (Optimism)', usdc_bsc: 'USDC (BSC)', usdc_sui: 'USDC (SUI)', usdc_tempo: 'USDC (Tempo)', usdt_erc20: 'USDT (Ethereum)', usdt_polygon: 'USDT (Polygon)', usdt_arbitrum: 'USDT (Arbitrum)', usdt_bsc: 'USDT (BSC)',
+  usdt_trc20: 'USDT (Tron)', usdt_tron: 'USDT (Tron)', usdt_ton: 'USDT (TON)', usdt_sui: 'USDT (SUI)', usdt_solana: 'USDT (Solana)', usdt_optimism: 'USDT (Optimism)', usdt_base: 'USDT (Base)', usdt_lightning: 'USDT (Lightning)', usdt_tempo: 'USDT (Tempo)', ethereum: 'Ethereum', eth_base: 'ETH (Base)', eth_arbitrum: 'ETH (Arbitrum)',
   solana: 'Solana', bitcoin: 'Bitcoin', lightning: 'Lightning', litecoin: 'Litecoin', dogecoin: 'Dogecoin', dash: 'Dash', ark: 'ARK', ton: 'TON', xrp: 'XRP',
   fiat_card: 'Card', google_pay: 'Google Pay', apple_pay: 'Apple Pay', balance: 'Bitrefill balance',
 };
 
 /** The methods the product page lists as accepted, readable. XRP is always there: Bluvfi pays it through a USDC invoice. */
-export function acceptedMethodLabels(product: Pick<ProductDetail, 'payment_methods'>): string[] {
-  const pm = product.payment_methods;
+export function acceptedMethodLabels(product: Pick<ProductDetail, 'payment_methods'> | null | undefined): string[] {
+  const pm = product?.payment_methods;
   const ids = [...(pm?.address_based ?? []), ...(pm?.link_only ?? []), ...(pm?.balance ?? [])];
   const labels = ids.map((id) => METHOD_LABELS[id] ?? id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
   if (!labels.includes('XRP')) labels.push('XRP');
   return [...new Set(labels)];
-}
-
-/** Whether the product can be paid from the wallet in the app (it accepts the USDC method). Unknown lists are given the benefit of the doubt. */
-export function acceptsWalletMethod(product: Pick<ProductDetail, 'payment_methods'>, method: 'usdc_base' | 'usdc_solana'): boolean {
-  const pm = product.payment_methods;
-  const ids = [...(pm?.address_based ?? []), ...(pm?.link_only ?? []), ...(pm?.balance ?? [])];
-  return ids.length === 0 || ids.includes(method);
 }
 
 // ── What the buyer provides ─────────────────────────────────────────────────────────────────────────────────
@@ -134,6 +125,13 @@ export function emailProblem(email: string): string | null {
   const v = email.trim();
   if (!v) return 'Enter your email. The receipt or code is sent there.';
   return EMAIL.test(v) ? null : 'That email doesn’t look right.';
+}
+
+export function giftProblem(on: boolean, name: string, email: string): string | null {
+  if (!on) return null;
+  if (!name.trim()) return 'Enter the recipient’s name.';
+  const emailIssue = emailProblem(email);
+  return emailIssue ? emailIssue.replace('your email', 'the recipient email').replace('receipt or code is sent there', 'gift is sent there') : null;
 }
 
 /** International dialling codes for the countries the Bills screens cover. */
@@ -193,6 +191,9 @@ export type Amount = { kind: 'package'; pkg: ProductPackage } | { kind: 'custom'
 /** Fixed products list their denominations; the rest take any amount in a range. */
 export const hasFixedPackages = (p: Pick<ProductDetail, 'packages'>) => (p.packages?.length ?? 0) > 0;
 
+/** Range products let the buyer type an amount, even if a catalog row still carried old denominations. */
+export const usesTypedAmount = (p: Pick<ProductDetail, 'range'>) => !!p.range;
+
 export function amountProblem(product: Pick<ProductDetail, 'range' | 'currency'>, value: number): string | null {
   const r = product.range;
   if (!r) return 'This product has no amount to choose.';
@@ -225,13 +226,14 @@ export interface InvoiceRequestInput {
   product: Pick<ProductDetail, 'id'>;
   kind: CheckoutKind;
   amount: Amount;
-  method: 'usdc_base' | 'usdc_solana';
+  method: BitrefillPaymentMethodId;
   /** The buyer's email: the receipt, and the code for cards and eSIMs. */
   email: string;
   /** The phone number in international form, for top-ups. */
   phoneE164?: string;
   /** The account number, username or delivery email, for products that ask for one. */
   refillInput?: string;
+  gift?: { recipientName: string; recipientEmail: string; message?: string; theme?: string } | null;
 }
 
 /** The body for POST /api/bitrefill/invoice, the same one the website sends. */
@@ -243,6 +245,18 @@ export function invoiceRequestBody(i: InvoiceRequestInput): Record<string, unkno
     paymentMethod: i.method,
     recipientEmail: i.email.trim(),
     ...(sendTo ? { sendTo } : {}),
+    ...(i.gift
+      ? {
+          gift: {
+            recipient_name: i.gift.recipientName.trim(),
+            recipient_email: i.gift.recipientEmail.trim(),
+            // Bitrefill requires a sender name for a gift; the website sends the same one.
+            sender_name: 'Bluvfi',
+            ...(i.gift.message?.trim() ? { message: i.gift.message.trim() } : {}),
+            ...(i.gift.theme ? { theme: i.gift.theme } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -281,7 +295,7 @@ export type InvoiceOutcome =
   | { state: 'waiting'; message: string };
 
 /** Reads one answer from GET /api/bitrefill/invoice/[id]: delivered, failed, or still on its way. */
-export function invoiceOutcome(inv: any, isTopup: boolean): InvoiceOutcome {
+export function invoiceOutcome(inv: any, isTopup: boolean, awaitingPayment = false): InvoiceOutcome {
   const status = String(inv?.status ?? inv?.invoice_status ?? '').toLowerCase();
   if (status === 'complete' || status === 'completed' || status === 'delivered') {
     const order = Array.isArray(inv?.orders) ? inv.orders[0] : undefined;
@@ -294,6 +308,8 @@ export function invoiceOutcome(inv: any, isTopup: boolean): InvoiceOutcome {
     return { state: 'failed', message: status === 'expired' ? 'The order expired before it was completed.' : 'Bitrefill couldn’t complete this order.' };
   }
   if (status === 'blocked') return { state: 'failed', message: 'Bitrefill put this order on hold for a compliance check. Visit Bitrefill to finish it.' };
+  // A deposit that hasn't been sent yet is still "unpaid": say so, rather than claiming a payment that hasn't happened.
+  if (awaitingPayment && (status === '' || status === 'unpaid' || status === 'created' || status === 'new' || status === 'pending')) return { state: 'waiting', message: 'Waiting for your payment…' };
   return {
     state: 'waiting',
     message: status === 'payment_detected' || status === 'payment_confirmed' ? 'Payment detected. Confirming…' : 'Payment sent. Bitrefill is processing the order…',
@@ -303,3 +319,66 @@ export function invoiceOutcome(inv: any, isTopup: boolean): InvoiceOutcome {
 /** Polling gives up after this long; the order still completes and shows in purchase history. */
 export const POLL_EVERY_MS = 4_000;
 export const POLL_GIVE_UP_MS = 6 * 60 * 1000;
+
+/** Deposit-address orders (Bitcoin, Tron USDT, XRP…) can take a while to be sent and confirmed; the invoice itself stays open about 15 minutes. */
+export const DEPOSIT_POLL_GIVE_UP_MS = 15 * 60 * 1000;
+
+/** The body for POST /api/bitrefill/xrp-purchase: the same as the invoice request but with no payment method (XRP isn't a Bitrefill method) and no gift. */
+export function xrpRequestBody(i: InvoiceRequestInput): Record<string, unknown> {
+  const { paymentMethod: _method, gift: _gift, ...rest } = invoiceRequestBody({ ...i, gift: null });
+  return rest;
+}
+
+export interface DepositDetails {
+  address: string;
+  /** The exact amount in the coin, or null when Bitrefill gave none (its checkout page shows it). */
+  amount: string | null;
+  currency: string;
+  paymentUri: string | null;
+  paymentLink: string | null;
+  expiresInMinutes: number | null;
+}
+
+/** The deposit address and amount from an invoice for an address-based method. Null when Bitrefill returned no address. */
+export function depositFromInvoice(inv: any): DepositDetails | null {
+  const address: string | undefined = inv?.payment_info?.address ?? inv?.payment?.address;
+  if (!address) return null;
+  const amount = inv?.payment_info?.altcoinPrice ?? inv?.payment_info?.amount ?? inv?.payment?.price;
+  return {
+    address,
+    amount: amount !== undefined && amount !== null && Number(amount) > 0 ? String(amount) : null,
+    currency: inv?.payment_info?.currency ?? '',
+    paymentUri: inv?.payment_info?.paymentUri ?? null,
+    paymentLink: inv?.payment_link ?? null,
+    expiresInMinutes: inv?.expiration_minutes ?? null,
+  };
+}
+
+export interface XrpOrder {
+  invoiceId: string;
+  accessToken?: string;
+  /** The swap address to send XRP to, and the exact amount (the swap plus the XRPL activation reserve). */
+  address: string;
+  amountXrp: string;
+  swapWalletId: string | null;
+  /** The person's own Bluvfi XRP wallet, when the server returned it (it can pay the swap with one tap). */
+  sidebarWalletId: string | null;
+  expiresInMinutes: number | null;
+}
+
+/** Reads POST /api/bitrefill/xrp-purchase. Null when the swap address or amount is missing. */
+export function xrpOrderFrom(res: any): XrpOrder | null {
+  const invoiceId: string = res?.invoiceId ?? '';
+  const address: string = res?.paymentAddress ?? '';
+  const amount = res?.requiredActivationXrp;
+  if (!invoiceId || !address || amount === undefined || amount === null || !(Number(amount) > 0)) return null;
+  return {
+    invoiceId,
+    accessToken: res?.invoiceAccessToken ?? undefined,
+    address,
+    amountXrp: String(amount),
+    swapWalletId: res?.xrplWalletRequestId ?? null,
+    sidebarWalletId: res?.sidebarWallet?.id ?? null,
+    expiresInMinutes: res?.expirationMinutes ?? null,
+  };
+}

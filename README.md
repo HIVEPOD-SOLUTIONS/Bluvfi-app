@@ -28,8 +28,8 @@ needs were made in the same period and are listed under "Backend".
   (Spark, Wisp, Guide, Seeker) and a weekly leaderboard, and **claim Shar as SKR** (1 Shar = 0.9 SKR). SKR can be **converted to USDC in the user's own
   wallet** (Jupiter), used automatically when a payment is short on USDC, or sent on to the Bluvfi wallet
   (`src/components/shar/`, `src/lib/skr-*.ts`).
-- **Open provider network**: anyone can sign up as a creator, add an API or protocol with its own input form, setup steps, credentials and terms,
-  and earn 80% of what people pay per call, withdrawn as SKR. Outside AI agents can pay over x402 (`src/app/(tabs)/network.tsx`, `src/app/creator.tsx`,
+- **Open provider network**: anyone can sign up as a creator, add a service or protocol with its own input form, setup steps, credentials and terms,
+  and earn 80% of what people pay per call, withdrawn as SKR. When the creator is a Seeker, an approved provider can be promoted into Bluvfi’s official Bills, Invest or Banking provider list for its use case. Outside AI agents can pay over x402 (`src/app/(tabs)/network.tsx`, `src/app/creator.tsx`,
   `src/app/provider/`).
 - **AI assistant in the app**: a chat that finds products, buys them, answers questions about Shar and the network, and links into screens. It only gets
   the tools the app has screens for.

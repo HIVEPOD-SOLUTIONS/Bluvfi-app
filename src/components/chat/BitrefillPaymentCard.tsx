@@ -22,10 +22,27 @@ export interface BitrefillPendingPayment {
 
 type State = 'idle' | 'paying' | 'done' | 'error' | 'manual';
 
+function tokenForMethod(pm: string): string {
+  if (pm === 'xrp') return 'XRP';
+  if (pm.includes('usdt')) return 'USDT';
+  if (pm.includes('usdc')) return 'USDC';
+  if (pm === 'bitcoin' || pm === 'lightning') return 'BTC';
+  if (pm.includes('litecoin')) return 'LTC';
+  if (pm.includes('dogecoin')) return 'DOGE';
+  if (pm.includes('dash')) return 'DASH';
+  if (pm.includes('ark')) return 'ARK';
+  if (pm.includes('ton')) return 'TON';
+  if (pm.includes('eth') || pm === 'ethereum') return 'ETH';
+  if (pm === 'solana') return 'SOL';
+  if (pm.includes('sui')) return 'SUI';
+  if (pm.includes('bnb')) return 'BNB';
+  if (pm.includes('brc')) return 'BRC';
+  return 'token';
+}
 /**
  * "Confirm Payment" for the assistant's buy_bitrefill_product tool, as on the web: Pay sends the invoice
  * amount from the user's wallet (direct token transfer, or SPL on Solana) and reports back so the assistant
- * can fetch the code. XRP and BSC USDT are paid manually to a deposit address.
+ * can fetch the code. Any token/chain Bitrefill returns without an in-wallet rail is paid manually to a deposit address.
  */
 export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCallId: string; output: BitrefillPendingPayment; onReport?: (result: Record<string, unknown>) => void }) {
   const { getEvmWallet, getSolanaProvider, solanaAddress } = useAuth();
@@ -38,7 +55,7 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
   const successAd = useSuccessAd();
 
   const pm = output.paymentMethod ?? 'usdc_base';
-  const currency = output.paymentCurrency || (pm.includes('usdt') ? 'USDT' : 'USDC');
+  const currency = output.paymentCurrency || tokenForMethod(pm);
 
   // In chat the result goes back to the assistant; on the product page the page itself listens (onReport).
   const report = (result: Record<string, unknown>) =>
@@ -55,27 +72,25 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
     setErrMsg(null);
     successAd.prepare();
 
-    // XRP and BSC USDT aren't paid from this wallet: show the address to send to.
+    // Methods without an in-wallet rail are paid manually: show the exact deposit address to send to.
     if (isManualMethod(pm)) {
       if (!output.paymentAddress) {
-        setErrMsg(pm === 'xrp' ? 'No XRP payment address returned' : 'No deposit address returned for BSC USDT');
+        setErrMsg(`No deposit address returned for ${currency}.`);
         setState('error');
         return;
       }
       setState('manual');
-      if (pm === 'usdt_bsc') {
-        // Tell the assistant the user has to send manually; it waits for them before polling.
-        report({
-          paid: false,
-          manualTransferRequired: true,
-          depositAddress: output.paymentAddress,
-          depositAmount: output.paymentAmount,
-          currency: 'USDT',
-          network: 'BSC (BEP-20)',
-          invoiceId: output.invoiceId,
-          tip: `BSC USDT requires manual transfer. The deposit address has been shown to the user. Ask them to send ${output.paymentAmount} USDT (BEP-20) to ${output.paymentAddress}, then call poll_bitrefill_order(invoiceId="${output.invoiceId}", isTopup=${!!output.isTopup}) every ~5 s until the status changes.`,
-        });
-      }
+      const network = EVM_NETWORK_LABEL[pm] ?? pm.replace(/_/g, ' ');
+      report({
+        paid: false,
+        manualTransferRequired: true,
+        depositAddress: output.paymentAddress,
+        depositAmount: output.paymentAmount,
+        currency,
+        network,
+        invoiceId: output.invoiceId,
+        tip: `${network} ${currency} requires manual transfer. The deposit address has been shown to the user. Ask them to send exactly ${output.paymentAmount} ${currency} to ${output.paymentAddress}, then call poll_bitrefill_order(invoiceId="${output.invoiceId}", isTopup=${!!output.isTopup}) every ~5 s until the status changes.`,
+      });
       return;
     }
 
@@ -114,7 +129,7 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
   if (state === 'manual' && output.paymentAddress) {
     const isXrp = pm === 'xrp';
     const network = EVM_NETWORK_LABEL[pm] ?? pm;
-    const label = isXrp ? 'XRP' : pm.includes('usdt') ? 'USDT' : 'USDC';
+    const label = output.paymentCurrency || tokenForMethod(pm);
     return (
       <View style={[styles.card, isXrp ? styles.sageCard : styles.warnCard]}>
         <Text style={[styles.title, { color: isXrp ? Colors.sageLight : Colors.amber }]}>
@@ -135,21 +150,20 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
             ? 'Only send XRP on the XRP Ledger. Once sent, tap below so Bluvfi can confirm delivery.'
             : `⚠ Only send on ${network} — sending on another network will result in loss of funds.`}
         </Text>
-        {isXrp && (
-          <Button
-            fullWidth
-            onPress={() => {
-              setState('done');
-              report({
-                paid: true,
-                invoiceId: output.invoiceId,
-                tip: `XRP sent — call poll_bitrefill_order(invoiceId="${output.invoiceId}") now and keep polling until complete.`,
-              });
-            }}
-          >
-            I've sent the XRP
-          </Button>
-        )}
+        <Button
+          fullWidth
+          onPress={() => {
+            setState('done');
+            report({
+              paid: true,
+              invoiceId: output.invoiceId,
+              isTopup: output.isTopup,
+              tip: `${label} sent on ${network} — call poll_bitrefill_order(invoiceId="${output.invoiceId}", isTopup=${!!output.isTopup}) now and keep polling until complete.`,
+            });
+          }}
+        >
+          {isXrp ? "I've sent the XRP" : "I've sent it"}
+        </Button>
       </View>
     );
   }

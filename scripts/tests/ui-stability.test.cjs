@@ -65,6 +65,10 @@ check("the logo breathes and rings of light ripple out; reduce-motion holds it s
 check("it stays a minimum moment, then fades out and removes itself", bs.includes("SPLASH_MIN_MS") && bs.includes("SPLASH_FADE_MS") && bs.includes("onDone") && rootLayout.includes("<BrandSplash ready={isReady}") && rootLayout.includes("splashDone ? null"));
 check("the native splash is dismissed only once the animated one is on screen (no gap)", bs.includes("onLayout={() => void SplashScreen.hideAsync()}"));
 
+// the ads library's Gradle build reads its app id from a TOP-LEVEL key of app.json; without it the whole Android build fails to configure
+const adsPlugin = (appJson.expo.plugins || []).find((p) => Array.isArray(p) && p[0] === "react-native-google-mobile-ads");
+check("app.json keeps the ads app id at its top level (the Android Gradle build reads it there) and it matches the plugin's", !!appJson["react-native-google-mobile-ads"] && /^ca-app-pub-[0-9]+~[0-9]+$/.test(appJson["react-native-google-mobile-ads"].android_app_id) && adsPlugin && adsPlugin[1].androidAppId === appJson["react-native-google-mobile-ads"].android_app_id);
+
 // who sees what: Admin only for the team, Shar / Activity / Help only for creators
 const profile = read("src/components/profile/ProfileContent.tsx");
 const sharHooks = read("src/hooks/use-shar.ts");
@@ -88,7 +92,8 @@ const guard = read("src/components/shar/CreatorOnly.tsx");
 check("the CreatorOnly screen guard sends non-creators Home and stays blank while it checks", guard.includes('<Redirect href="/" />') && guard.includes("data?.creator == null") && guard.includes("isLoading"));
 const onboarding = read("src/app/onboarding.tsx");
 const login = read("src/app/login.tsx");
-check("creator onboarding: SKR for creators is a carousel slide and its CTA signs up then opens the creator profile", onboarding.includes("Open Program") && onboarding.includes("Offer a service people and AI agents can use") && onboarding.includes("Keep 80% of paid calls") && onboarding.includes("Join the open program") && onboarding.includes("next: 'creator'") && login.includes("next === 'creator' ? '/creator' : '/(tabs)'"));
+check("creator onboarding: SKR for creators is a carousel slide and its CTA signs up then opens the creator profile", onboarding.includes("Open Program") && onboarding.includes("Offer a service people and AI agents can use") && onboarding.includes("Seeker creators can become official Bluvfi providers") && onboarding.includes("Join the open program") && onboarding.includes("next: 'creator'") && login.includes("next === 'creator' ? '/creator' : '/(tabs)'"));
+check("Seeker creator providers can be promoted into official use-case provider lists", [onboarding, read("src/app/creator.tsx"), read("src/components/shar/ProviderFormScreen.tsx"), read("src/app/(tabs)/network.tsx"), read("src/lib/faq.ts"), read("src/components/profile/ProfileContent.tsx")].every((source) => /Seeker creator|Seeker creators/.test(source)) && read("README.md").includes("official Bills, Invest or Banking provider list"));
 check("the Shar, Activity and FAQ screens are each wrapped in CreatorOnly (direct links and old history entries included)", ["src/app/(tabs)/shar.tsx", "src/app/activity.tsx", "src/app/faq.tsx"].every((f) => { const s = read(f); return s.includes("<CreatorOnly>") && /export default function \w+\(\) \{\s*return \(\s*<CreatorOnly>/.test(s); }));
 check("links the assistant writes to Shar / Activity / FAQ do nothing for non-creators, and the chat cards drop their 'Open Shar' / 'Open Activity' links", read("src/components/chat/MessageBubble.tsx").includes("!isCreator && isCreatorOnlyRoute(screen)") && /\{isCreator \? \(\s*<Pressable onPress=\{\(\) => open\('\/shar'\)\}/.test(read("src/components/chat/ToolResultCard.tsx")) && /\{isCreator \? \(\s*<Pressable onPress=\{\(\) => open\('\/activity'\)\}/.test(read("src/components/chat/ToolResultCard.tsx")));
 check("the Network screen's help (?) button, which opens the FAQ, shows only for creators", /\{isCreator \? \(\s*<Pressable onPress=\{\(\) => router\.push\(\{ pathname: '\/faq'/.test(read("src/app/(tabs)/network.tsx")));

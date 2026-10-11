@@ -15,16 +15,21 @@ const ALCHEMY_KEY = process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ?? '';
 
 /** Methods Bitrefill is paid for outside the wallet: the user sends manually to the deposit address. */
 export function isManualMethod(pm: string): boolean {
-  return pm === 'xrp' || pm === 'usdt_bsc';
+  return pm === 'xrp' || (!EVM_TOKENS[pm] && pm !== 'usdc_solana' && pm !== 'usdt_solana');
 }
 
 export const EVM_NETWORK_LABEL: Record<string, string> = {
-  usdc_base: 'Base', usdt_base: 'Base',
-  usdc_erc20: 'Ethereum', usdt_erc20: 'Ethereum',
+  usdc_base: 'Base', usdt_base: 'Base', eth_base: 'Base',
+  usdc_erc20: 'Ethereum', usdt_erc20: 'Ethereum', ethereum: 'Ethereum',
   usdc_polygon: 'Polygon', usdt_polygon: 'Polygon',
-  usdc_arbitrum: 'Arbitrum', usdt_arbitrum: 'Arbitrum',
+  usdc_arbitrum: 'Arbitrum', usdt_arbitrum: 'Arbitrum', eth_arbitrum: 'Arbitrum',
   usdc_optimism: 'Optimism', usdt_optimism: 'Optimism',
-  usdt_bsc: 'BSC (BEP-20)',
+  usdc_bsc: 'BSC (BEP-20)', usdt_bsc: 'BSC (BEP-20)', bnb_bsc: 'BSC (BEP-20)',
+  usdc_solana: 'Solana', usdt_solana: 'Solana', solana: 'Solana', brc_solana: 'Solana',
+  usdt_trc20: 'Tron', usdt_ton: 'TON', usdt_sui: 'SUI', usdc_sui: 'SUI',
+  usdt_lightning: 'Lightning', bitcoin: 'Bitcoin', lightning: 'Lightning', ton: 'TON',
+  xrp: 'XRP Ledger', litecoin: 'Litecoin', dogecoin: 'Dogecoin', dash: 'Dash', ark: 'ARK', sui: 'SUI',
+  usdc_tempo: 'Tempo', usdt_tempo: 'Tempo',
 };
 
 export interface BitrefillPayInput {

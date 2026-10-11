@@ -281,7 +281,7 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
         >
           <View style={{ flex: 1 }}>
             <Text style={styles.sharTitle}>Become a creator</Text>
-            <Text style={styles.sharSub}>List a provider on the open network and earn Shar</Text>
+            <Text style={styles.sharSub}>List a provider; Seeker creators can join official Bluvfi use cases</Text>
           </View>
           <Text style={styles.sharGo}>›</Text>
         </Pressable>

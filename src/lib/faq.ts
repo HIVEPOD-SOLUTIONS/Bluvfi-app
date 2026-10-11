@@ -172,19 +172,19 @@ export function buildFaq(f: FaqFacts = DEFAULT_FACTS): FaqSection[] {
         {
           id: 'network-what',
           q: 'What is the open network?',
-          a: 'A shared directory of providers and protocols: APIs, data and tools that people and AI agents can use through Bluvfi. You can explore what’s there and try a provider. If you want to list your own, sign up as a creator first (it’s optional).',
+          a: 'A shared directory of providers, protocols, data and tools that people and AI agents can use through Bluvfi. You can explore what’s there and try a provider. If you want to list your own, sign up as a creator first (it’s optional). Seeker creators whose providers pass review can be promoted into Bluvfi’s official Bills, Invest or Banking provider lists for the right use case.',
           links: [{ label: 'Open the network', to: '/network' }],
         },
         {
           id: 'network-add',
           q: 'How do I add a provider?',
-          a: 'First sign up as a creator (see below), which you only do once. Then on the Network screen tap Add, and give it a name, what it does, its web address and a price per call (or free), and tick that you own the service or may offer it. The team checks each listing before it goes public. You can also list the inputs people fill in, steps they need to do first, and the key Bluvfi should use to call your API (all optional).',
+          a: 'First sign up as a creator (see below), which you only do once. Then on the Network screen tap Add, and give it a name, what it does, its web address and a price per call (or free), and tick that you own the service or may offer it. Pick the category carefully: it tells Bluvfi whether a Seeker creator’s approved provider belongs in Bills, Invest or Banking as an official built-in provider. The team checks each listing before it goes public. You can also list the inputs people fill in, steps they need to do first, and the key Bluvfi should use to call your service (all optional).',
           links: [{ label: 'Add a provider', to: '/network' }],
         },
         {
           id: 'network-creator',
           q: 'Do I have to be a creator?',
-          a: 'No. Anyone can use providers. Being a creator is an optional, free sign-up for people who want to list their own. You say whether you’re an individual or a company or team, give a contact email only the Bluvfi team sees, and agree to the provider terms once. If the terms change you’ll be asked to agree again before adding another provider, and your existing providers keep working. You can change your details any time from your creator profile, and that doesn’t send your providers back for review.',
+          a: 'No. Anyone can use providers. Being a creator is an optional, free sign-up for people who want to list their own. If you’re a Seeker creator, Bluvfi can promote an approved provider into the official built-in provider list for its use case. You say whether you’re an individual or a company or team, give a contact email only the Bluvfi team sees, and agree to the provider terms once. If the terms change you’ll be asked to agree again before adding another provider, and your existing providers keep working. You can change your details any time from your creator profile, and that doesn’t send your providers back for review.',
           links: [{ label: 'Become a creator', to: '/creator' }],
         },
         {

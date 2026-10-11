@@ -116,8 +116,8 @@ export default function NetworkScreen() {
           <SharOrb size={72} />
           <Text style={styles.introText}>
             {needsSignup
-              ? 'Use any provider here. Run your own API or protocol? Sign up as a creator, which is optional, to list it and earn from every use.'
-              : `Add a provider or protocol, or remix one. When it’s verified and people use it, you earn${rules ? ` ${rules.providerUseShar} Shar` : ' Shar'} for each use.`}
+              ? 'Use any provider here. Seeker creators can have approved providers promoted into Bluvfi’s official Bills, Invest or Banking list for their use case.'
+              : `Add a provider or protocol, or remix one. Verified providers live in the open network; Seeker creators can also be promoted into official Bills, Invest or Banking surfaces by use case.`}
           </Text>
         </View>
 
@@ -183,7 +183,7 @@ export default function NetworkScreen() {
           ) : (
             <Notice
               title="No providers are live yet"
-              body={explore.data?.ready === false ? 'The network is being switched on. You can add yours as soon as it is.' : 'Be the first. Add a provider and, once it’s verified, it shows up here.'}
+              body={explore.data?.ready === false ? 'The network is being switched on. You can add yours as soon as it is.' : 'Be the first. Add a provider and, once it’s verified, it shows up here. If you’re a Seeker creator, Bluvfi can also promote it into the official provider list for its use case.'}
               action={needsSignup ? 'Become a creator' : 'Add a provider'}
               onAction={() => openForm(null)}
             />
@@ -202,9 +202,9 @@ export default function NetworkScreen() {
           ))
         ) : (
           needsSignup ? (
-            <Notice title="Listing providers is optional" body="You don’t need to be a creator to use providers. Sign up (free, a minute) if you want to add your own, have the team verify it and earn from every use." action="Become a creator" onAction={() => openForm(null)} />
+            <Notice title="Listing providers is optional" body="You don’t need to be a creator to use providers. Sign up (free, a minute) if you want to add your own, have the team verify it and, if you’re a Seeker creator, place it in an official Bluvfi use-case list." action="Become a creator" onAction={() => openForm(null)} />
           ) : (
-            <Notice title="You haven’t added a provider" body="Add one and it goes to the team for verification. Once it’s live, every use earns you Shar." action="Add a provider" onAction={() => openForm(null)} />
+            <Notice title="You haven’t added a provider" body="Add one and it goes to the team for verification. Once it’s live, every use earns you Shar. Seeker creator providers can be promoted into official Bills, Invest or Banking lists by use case." action="Add a provider" onAction={() => openForm(null)} />
           )
         )}
 
