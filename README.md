@@ -11,9 +11,9 @@ recognise **Seeker** owners and their **.skr** names, and an **SKR** reward loop
 
 | | |
 |---|---|
-| Android APK | _link added at submission_ |
-| Demo video (about 3 min, recorded on a device) | _link added at submission_ |
-| Pitch deck | _link added at submission_ |
+| Android APK | [Bluvfi 6.0.5 (release APK, Android 7.0+, 64-bit ARM)](https://github.com/HIVEPOD-SOLUTIONS/Bluvfi-app/releases/latest) · SHA-256 `b904a0efd7494153ad9f860bd010a7b30519c6bc253807785072b36317eb0525` |
+| Demo video (about 3 min, recorded on a device) | [Watch on YouTube](https://youtu.be/TWpAETEkfTU) |
+| Pitch deck | [Bluvfi pitch deck (PDF)](https://drive.google.com/file/d/1m4fNW_BBBo1iRTgWuTErJVLkCCR6YlCg/view?usp=sharing) |
 
 ## What's new for the hackathon
 
