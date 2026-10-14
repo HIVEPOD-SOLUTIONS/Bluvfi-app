@@ -5,7 +5,7 @@
  *
  *   • "@/..." and relative imports resolve to the real source files.
  *   • Anything else must be stubbed by the test (an unstubbed import is an error, so a test never silently
- *     runs against a real native module). A few pure packages are allowed through: buffer, @solana/web3.js, node:crypto.
+ *     runs against a real native module). A few pure packages are allowed through: buffer, @solana/web3.js, viem, node:crypto.
  */
 const path = require("path");
 const fs = require("fs");
@@ -18,6 +18,9 @@ const PASS_THROUGH = {
   "@solana/web3.js": () => require(path.join(ROOT, "node_modules", "@solana/web3.js")),
   "@solana/spl-token": () => require(path.join(ROOT, "node_modules", "@solana/spl-token")),
   "node:crypto": () => require("node:crypto"),
+  // The chain definitions (arc-chain.ts, swap-chains.ts) are plain viem data.
+  viem: () => require(path.join(ROOT, "node_modules", "viem")),
+  "viem/chains": () => require(path.join(ROOT, "node_modules", "viem", "chains")),
 };
 
 function compile(file) {

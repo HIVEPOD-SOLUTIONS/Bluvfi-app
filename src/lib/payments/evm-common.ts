@@ -1,6 +1,8 @@
 import type { Chain } from 'viem';
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
 import { domaChain } from '@/lib/doma-chain';
+import { arcChain } from '@/lib/arc-chain';
+import { robinhoodChain, tempoChain } from '@/lib/swap-chains';
 
 /** Small pieces shared by the payment layers (evm-pay.ts and gas-relay.ts), kept apart so they don't import each other. */
 
@@ -20,6 +22,9 @@ const CHAINS: Record<number, Chain> = {
   42161: arbitrum,
   10: optimism,
   [domaChain.id]: domaChain,
+  [arcChain.id]: arcChain,
+  [robinhoodChain.id]: robinhoodChain,
+  [tempoChain.id]: tempoChain,
 };
 
 export function evmChain(chainId: number): Chain {

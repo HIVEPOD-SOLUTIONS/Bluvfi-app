@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useEmbeddedEthereumWallet, useEmbeddedSolanaWallet } from '@privy-io/expo';
+import { ChainLabel } from '@/components/dashboard/PaymentMethodPicker';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
@@ -126,14 +127,14 @@ export function PaymentConfirmSheet({
             disabled={isBusy}
             style={[styles.networkButton, network === 'evm' && styles.networkButtonActive]}
           >
-            <Text style={[styles.networkLabel, network === 'evm' && styles.networkLabelActive]}>🔷 Base (EVM)</Text>
+            <ChainLabel name="Base" textStyle={[styles.networkLabel, network === 'evm' && styles.networkLabelActive]} size={16} />
           </Pressable>
           <Pressable
             onPress={() => setNetwork('solana')}
             disabled={isBusy}
             style={[styles.networkButton, network === 'solana' && styles.networkButtonActive]}
           >
-            <Text style={[styles.networkLabel, network === 'solana' && styles.networkLabelActive]}>◎ Solana</Text>
+            <ChainLabel name="Solana" textStyle={[styles.networkLabel, network === 'solana' && styles.networkLabelActive]} size={16} />
           </Pressable>
         </View>
       )}

@@ -20,6 +20,8 @@ export interface DepositInfo {
   /** Where Bitrefill's own page shows the exact amount, for the methods that give no amount. */
   paymentLink?: string | null;
   expiresInMinutes?: number | null;
+  /** A memo or tag the payment MUST include (some chains need one). */
+  memo?: string | null;
 }
 
 interface Props {
@@ -29,13 +31,15 @@ interface Props {
   status: string;
   /** An extra action, such as paying XRP from the Bluvfi XRP wallet. */
   action?: { label: string; onPress: () => void; loading?: boolean; error?: string | null } | null;
+  /** Extra guidance under the warning (how to pay it, where a failed payment is refunded). */
+  note?: string | null;
 }
 
 /**
  * The payment step for every method that is sent to a deposit address (Bitcoin, Tron USDT, TON, XRP…), as on the website: the exact amount, the
  * address and a QR to scan. Nothing needs tapping after sending: the order completes by itself, so this just shows what is happening.
  */
-export function DepositPanel({ info, logo, status, action }: Props) {
+export function DepositPanel({ info, logo, status, action, note }: Props) {
   const toast = useToast();
   const copy = async (text: string, what: string) => {
     await Clipboard.setStringAsync(text);
@@ -75,7 +79,19 @@ export function DepositPanel({ info, logo, status, action }: Props) {
         <Text style={styles.copyLink}>Copy</Text>
       </Pressable>
 
+      {info.memo ? (
+        <Pressable onPress={() => copy(info.memo as string, 'Memo')} accessibilityRole="button" style={styles.memoBox}>
+          <Text style={styles.warn}>Include this memo with the payment, or it can’t be matched:</Text>
+          <Text selectable style={styles.address}>
+            {info.memo}
+          </Text>
+          <Text style={styles.copyLink}>Tap to copy</Text>
+        </Pressable>
+      ) : null}
+
       <Text style={styles.warn}>⚠ Only send {info.currency} on {info.network}. Sending anything else, or on another network, can’t be recovered.</Text>
+
+      {note ? <Text style={styles.hint}>{note}</Text> : null}
 
       {action ? (
         <View style={{ gap: 6 }}>
@@ -107,6 +123,7 @@ const styles = StyleSheet.create({
   qr: { alignItems: 'center' },
   addressBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.bg1, borderRadius: Radii.lg, padding: Spacing.md },
   address: { flex: 1, fontFamily: Fonts.mono, fontSize: 12, color: Colors.tx0 },
+  memoBox: { gap: 4, backgroundColor: 'rgba(232,168,56,0.08)', borderRadius: Radii.lg, borderWidth: 1, borderColor: 'rgba(232,168,56,0.3)', padding: Spacing.md },
   copyLink: { ...Type.small, fontFamily: Fonts.sansSemiBold, color: Colors.sage },
   warn: { ...Type.small, color: Colors.amber },
   error: { ...Type.small, color: Colors.redAlert },

@@ -25,7 +25,7 @@ check("a plain 'Mainnet' is the coin's own chain (BTC is Bitcoin, LTC is Litecoi
 check("a network we have never heard of still gets a lettered circle, never a blank", lg.crChainLogo("Somenewchain", "USDT").glyph === "S" && lg.crChainLogo("Somenewchain", "USDT").uris.length === 0);
 
 const sheet = read("src/components/dashboard/CryptorefillsProductSheet.tsx");
-check("the Cryptorefills checkout shows logos: USDC on Base and Solana with their chains, every other coin with its logo, and each network with its logo", sheet.includes("<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('base')} />") && sheet.includes("<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('solana')} />") && sheet.includes("crTokenLogo(c)") && sheet.includes("crChainLogo(m.network, m.coin)") && !sheet.includes("coins.slice("));
+check("the Cryptorefills checkout lists every coin with every network up front, as Bitrefill does (no tap-a-coin-first step), each chip with the coin's logo and its network's logo", sheet.includes("<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('base')} />") && sheet.includes("<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('solana')} />") && sheet.includes("coinGroups.map(([coin, ms])") && sheet.includes("crTokenLogo(coin)") && sheet.includes("crChainLogo(m.network, coin)") && !sheet.includes("Network for ") && !sheet.includes("otherCoin") && !sheet.includes("coins.slice("));
 
 // ── gift
 check("Send as a Gift is offered for gift cards and eSIMs (a phone top-up is already for whichever number is entered)", sheet.includes("Send as a Gift") && sheet.includes("const giftable = !isTopup") && sheet.includes("{giftable ? (") && sheet.includes("A top-up is a gift whenever the number above belongs to someone else"));
@@ -45,7 +45,17 @@ const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - 
 const bg = hex("bg1");
 check("the open tab is a lifted brand blue that reads on the dark bar (contrast at least 4.5:1; the plain blue was about 1.7:1), and the other tabs are bright", hex("blueBright") && contrast(hex("blueBright"), bg) >= 4.5 && contrast(hex("tx0"), bg) >= 10 && contrast(hex("blue"), bg) < 3, `${contrast(hex("blueBright"), bg).toFixed(1)}:1`);
 const tabs = read("src/app/(tabs)/_layout.tsx");
-check("the menu has bigger icons and labels, a highlight behind the open tab, and a taller bar", tabs.includes("tabBarActiveTintColor: Colors.blueBright") && tabs.includes("tabBarActiveBackgroundColor") && tabs.includes("fontSize: 12") && !tabs.includes("Svg width={20}") && (tabs.match(/Svg width=\{24\}/g) || []).length === 4 && /BottomNavHeight = (7[0-9]|8[0-9])/.test(theme));
+check("the menu is a plain bar like a system one: bigger icons and labels, the open tab told apart by colour alone (no pill or box behind it), light inactive tabs, and a taller bar", tabs.includes("tabBarActiveTintColor: Colors.blueBright") && !tabs.includes("tabBarActiveBackgroundColor") && !tabs.includes("borderRadius: 16, marginHorizontal") && tabs.includes("tabBarInactiveTintColor: '#C9C8BD'") && tabs.includes("fontSize: 11.5") && !tabs.includes("Svg width={20}") && (tabs.match(/Svg width=\{24\}/g) || []).length === 4 && /BottomNavHeight = (7[0-9]|8[0-9])/.test(theme));
+
+// ── chain and token logos, everywhere a chain is named
+const logos = read("src/lib/payment-logos.ts");
+check("Arc and Robinhood Chain have logos (they drew a letter circle before), and the two Cryptorefills coins CoinMarketCap had no id for (USDSC, USDm) have one too", logos.includes("arc: 'arc', robinhood: 'robinhood'") && logos.includes("USDSC:") && logos.includes("USDM:"));
+const picker = read("src/components/dashboard/PaymentMethodPicker.tsx");
+const wallet = read("src/components/dashboard/FundWalletSheet.tsx") + read("src/components/dashboard/WalletTabs.tsx");
+check("the wallet sheet shows real network logos (tabs, Buy, Bridge from/to, balances) through ChainLabel instead of emoji text", picker.includes("export function ChainLabel") && (wallet.match(/<ChainLabel /g) || []).length >= 4 && !/\{(opt|d|n)\.icon\} \{(opt|d|n)\.label\}/.test(wallet));
+const emojiChains = ["src/components/dashboard/HistorySection.tsx", "src/components/payment/PaymentConfirmSheet.tsx", "src/components/chat/ArcSendCard.tsx", "src/components/chat/BitrefillPaymentCard.tsx"].map(read).join("\n");
+check("History rows, the payment confirm sheet, the Arc send card and the manual-send card draw network logos, not emoji (🔷 🟣 ◎ 🟡)", !/[🔷🟣◎🟡]/u.test(emojiChains) && read("src/components/dashboard/HistorySection.tsx").includes("netBadge"));
+check("every 'Pay from another chain' link shows the five chains' logos, and the Cryptorefills checkout gives each chain its own tappable chip with its logo", picker.includes("export function MoreChainsLink") && picker.includes("export function ChainLogoStack") && read("src/components/dashboard/CryptorefillsProductSheet.tsx").includes("<TokenChainLogo token={chainLogo(c)} />"));
 
 // ── the send arrow
 const home = read("src/app/(tabs)/index.tsx");

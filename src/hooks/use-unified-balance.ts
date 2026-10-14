@@ -4,7 +4,8 @@ import { useAuth } from '@/lib/auth-context';
 
 /** USDC across every network, from Circle App Kit's unified balance. Mirrors bluvfi web's hook. */
 
-export const EVM_BALANCE_CHAINS = ['Base', 'Ethereum', 'Arbitrum', 'Optimism', 'Polygon', 'Avalanche'] as const;
+// Arc is Circle's USDC-gas L1 (UnifiedBalanceChain.Arc, App Kit 1.15 or later).
+export const EVM_BALANCE_CHAINS = ['Base', 'Ethereum', 'Arbitrum', 'Optimism', 'Polygon', 'Avalanche', 'Arc'] as const;
 
 export const CHAIN_META: Record<string, { label: string; icon: string; color: string }> = {
   Base: { label: 'Base', icon: '🔷', color: '#0052FF' },
@@ -13,6 +14,7 @@ export const CHAIN_META: Record<string, { label: string; icon: string; color: st
   Optimism: { label: 'Optimism', icon: '🔴', color: '#FF0420' },
   Polygon: { label: 'Polygon', icon: '🟣', color: '#8247E5' },
   Avalanche: { label: 'Avalanche', icon: '🔺', color: '#E84142' },
+  Arc: { label: 'Arc', icon: '🟣', color: '#7B61FF' },
   Solana: { label: 'Solana', icon: '◎', color: '#9945FF' },
 };
 

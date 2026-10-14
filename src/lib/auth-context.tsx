@@ -20,6 +20,8 @@ import { useLoginWithPasskey, useSignupWithPasskey } from '@privy-io/expo/passke
 import { PrivyElements } from '@privy-io/expo/ui';
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
 import type { Chain } from 'viem';
+import { arcChain } from '@/lib/arc-chain';
+import { robinhoodChain, tempoChain } from '@/lib/swap-chains';
 import { domaChain } from '@/lib/doma-chain';
 import { mwaAvailable, signInWithWallet } from '@/lib/mwa';
 import { useSkrName } from '@/lib/skr';
@@ -41,7 +43,7 @@ const PASSKEY_RELYING_PARTY = 'bluvfi.xyz';
  * Every EVM chain the wallet pays on (same list as bluvfi web's Privy config), so wallet_switchEthereumChain
  * succeeds when a payment is on Polygon, Arbitrum, Optimism, Ethereum or the Doma chain (domain orders).
  */
-const SUPPORTED_CHAINS: [Chain, ...Chain[]] = [base, polygon, arbitrum, optimism, mainnet, domaChain];
+const SUPPORTED_CHAINS: [Chain, ...Chain[]] = [base, polygon, arbitrum, optimism, mainnet, domaChain, arcChain, robinhoodChain, tempoChain];
 
 /**
  * "Sign in with Solana" tells Privy which website is asking for the signature. Privy only accepts a domain that is one

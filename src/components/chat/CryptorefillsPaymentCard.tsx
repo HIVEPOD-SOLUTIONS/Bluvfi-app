@@ -5,11 +5,15 @@ import QRCodeStyled from 'react-native-qrcode-styled';
 import { Button } from '@/components/ui/Button';
 import { PayFromWallet, markSentFromWallet } from './PayFromWallet';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
+import { MoreChainsLink, TokenChainLogo } from '@/components/dashboard/PaymentMethodPicker';
+import { crChainLogo, crTokenLogo } from '@/lib/cryptorefills-logos';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
 import { useSuccessAd } from '@/hooks/use-success-ad';
 import { PayFromPicker } from '@/components/wallet/PayFromPicker';
+import { ChainTopUpPanel } from '@/components/dashboard/ChainTopUpPanel';
+import { isSwapChain, type SwapChain } from '@/lib/swap-chains';
 import { useSolanaPaySource } from '@/lib/wallet-connection';
 import { sendFromWallet, walletRailFor } from '@/lib/payments/wallet-send';
 import {
@@ -60,6 +64,9 @@ type Output = {
   partnerOrder?: CrPartnerRequest;
   /** The same purchase as a USDC deposit-address order, used if the gasless checkout is unavailable. */
   fallbackPartnerOrder?: CrPartnerRequest;
+  /** Pay from Arc / Tempo / Robinhood / Zcash / Hyperliquid: top up the Base wallet first, then pay gaslessly on Base. */
+  fundFrom?: SwapChain;
+  refundAddress?: string;
   // Set after the card reports back:
   paid?: boolean;
   orderId?: string;
@@ -90,6 +97,8 @@ export function CryptorefillsPaymentCard({ toolCallId, output, onReport }: { too
   const [deposit, setDeposit] = useState<CrPartnerOrder | null>(output.deposit ?? null);
   const [depositState, setDepositState] = useState('awaiting_payment');
   const [priceConfirm, setPriceConfirm] = useState<{ amount: number; resolve: (ok: boolean) => void } | null>(null);
+  // In chat, a payment can first top up the Base wallet from another chain. (On a product page the checkout offers that as its own choice.)
+  const [showTopUp, setShowTopUp] = useState(!onReport && !isOther && isSwapChain(output.fundFrom));
   const abort = useRef(new AbortController());
   const successAd = useSuccessAd();
   // Only a payment made in this session gets the ad (not an old, completed order shown again).
@@ -290,6 +299,22 @@ export function CryptorefillsPaymentCard({ toolCallId, output, onReport }: { too
     }
   };
 
+  // After a top-up from another chain the USDC is on Base, so pay on Base.
+  const confirmAfterTopUp = async () => {
+    setMsg(null);
+    setShowTopUp(false);
+    paidHere.current = true;
+    successAd.prepare();
+    try {
+      await confirmGasless('base');
+    } catch (e) {
+      const m = friendlyPayError(e);
+      setState('error');
+      setMsg(m);
+      report({ paid: false, error: m });
+    }
+  };
+
   const busy = state === 'quoting' || state === 'signing' || state === 'settling' || state === 'polling';
   const payLabel =
     payWith === 'other'
@@ -315,6 +340,24 @@ export function CryptorefillsPaymentCard({ toolCallId, output, onReport }: { too
 
       {state === 'idle' && payWith === 'solana' && <PayFromPicker needed={output.priceUsd} />}
 
+      {state === 'idle' && !isOther && showTopUp ? (
+        <ChainTopUpPanel
+          inChat
+          token="usdc"
+          amount={output.priceUsd.toFixed(2)}
+          amountUsd={output.priceUsd}
+          purpose="cryptorefills"
+          reference={`${output.productName} → ${output.recipient}`}
+          initialChain={isSwapChain(output.fundFrom) ? output.fundFrom : undefined}
+          initialRefundAddress={output.refundAddress}
+          onFunded={() => void confirmAfterTopUp()}
+        />
+      ) : null}
+
+      {state === 'idle' && !isOther && !showTopUp && !onReport ? (
+        <MoreChainsLink onPress={() => setShowTopUp(true)} textStyle={styles.topUpLink} />
+      ) : null}
+
       {state === 'idle' && (
         <View style={styles.actions}>
           <View style={{ flex: 1 }}>
@@ -330,11 +373,13 @@ export function CryptorefillsPaymentCard({ toolCallId, output, onReport }: { too
               Cancel
             </Button>
           </View>
-          <View style={{ flex: 1 }}>
-            <Button variant="secondary" fullWidth onPress={confirm}>
-              {isOther ? 'Get payment address' : 'Confirm & pay'}
-            </Button>
-          </View>
+          {!(showTopUp && !isOther) ? (
+            <View style={{ flex: 1 }}>
+              <Button variant="secondary" fullWidth onPress={confirm}>
+                {isOther ? 'Get payment address' : 'Confirm & pay'}
+              </Button>
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -405,7 +450,8 @@ function DepositPanel({ order, state }: { order: CrPartnerOrder; state: string }
 
   return (
     <View style={{ gap: Spacing.md }}>
-      <View style={{ alignItems: 'center' }}>
+      <View style={{ alignItems: 'center', gap: 6 }}>
+        {order.coin ? <TokenChainLogo token={crTokenLogo(order.coin)} chain={order.network ? crChainLogo(order.network, order.coin) : null} size={36} /> : null}
         <Text style={styles.sub}>Send exactly</Text>
         <Pressable onPress={() => copy(order.coin_amount ?? '')}>
           <Text style={styles.sendAmount}>
@@ -505,6 +551,7 @@ function Delivered({ order, email }: { order: CrOrderStatus; email: string }) {
 }
 
 const styles = StyleSheet.create({
+  topUpLink: { ...Type.small, color: Colors.sage, textDecorationLine: 'underline', textAlign: 'center' },
   card: {
     backgroundColor: Colors.bg1,
     borderWidth: 1,

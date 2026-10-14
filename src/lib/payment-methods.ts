@@ -6,18 +6,21 @@
  *   address  Bitrefill gives a deposit address and exact amount; the person sends it from any wallet and the order completes by itself
  *   xrp      a Bluvfi-only method: the invoice is settled in USDC behind the scenes (POST /api/bitrefill/xrp-purchase), and the person
  *            sends XRP to a swap address (or pays it from their Bluvfi XRP wallet). Never sent to the invoice API as a method.
+ *   chain    Bluvfi-only too, for Zcash, Hyperliquid USDC, Arc USDC, Tempo USDC.e and Robinhood Chain ETH (POST /api/bitrefill/chain-purchase).
+ *            The invoice is settled in USDC behind the scenes. Arc and Tempo are signed by the Bluvfi wallet in one go; Robinhood Chain, Zcash
+ *            and Hyperliquid show an address to pay (Robinhood Chain ETH can also be sent from the Bluvfi wallet). Never sent to the invoice API.
  *   link     Bitrefill's own checkout page (Binance Pay, Kraken Pay)
  *
  * Pure data and rules: no React, no network, so it can be tested.
  */
 
-export type Rail = 'wallet' | 'address' | 'xrp' | 'link';
+export type Rail = 'wallet' | 'address' | 'xrp' | 'chain' | 'link';
 export type MethodGroup = 'USDT' | 'USDC' | 'BRUSD' | 'Crypto' | 'Exchange Pay';
 
 export type ChainKey =
   | 'ethereum' | 'base' | 'polygon' | 'arbitrum' | 'optimism' | 'bsc' | 'solana' | 'tron' | 'ton' | 'sui'
   | 'bitcoin' | 'lightning' | 'xrpl' | 'litecoin' | 'dogecoin' | 'dash' | 'ark' | 'tempo' | 'binance' | 'kraken'
-  | 'avalanche' | 'plasma' | 'soneium' | 'xlayer' | 'celo' | 'sonic' | 'worldchain';
+  | 'avalanche' | 'plasma' | 'soneium' | 'xlayer' | 'celo' | 'sonic' | 'worldchain' | 'zcash' | 'hyperliquid' | 'arc' | 'robinhood';
 
 export interface PaymentMethod {
   id: string;
@@ -73,6 +76,12 @@ export const PAYMENT_METHODS: readonly PaymentMethod[] = [
   m('lightning', 'Crypto', 'BTC', 'lightning', 'Lightning', 'address'),
   m('ton', 'Crypto', 'TON', 'ton', 'TON', 'address'),
   m('xrp', 'Crypto', 'XRP', 'xrpl', 'XRP', 'xrp'),
+  // Through bluvfi's swap service (the website's order): valid for any product, never in Bitrefill's own lists.
+  m('zcash', 'Crypto', 'ZEC', 'zcash', 'Zcash', 'chain'),
+  m('hyperliquid', 'Crypto', 'USDC', 'hyperliquid', 'USDC', 'chain'),
+  m('arc', 'Crypto', 'USDC', 'arc', 'USDC', 'chain'),
+  m('tempo', 'Crypto', 'USDC.e', 'tempo', 'USDC.e', 'chain'),
+  m('robinhood', 'Crypto', 'ETH', 'robinhood', 'ETH', 'chain'),
   m('litecoin', 'Crypto', 'LTC', 'litecoin', 'Litecoin', 'address'),
   m('dogecoin', 'Crypto', 'DOGE', 'dogecoin', 'Dogecoin', 'address'),
   m('dash', 'Crypto', 'DASH', 'dash', 'Dash', 'address'),
@@ -96,7 +105,10 @@ export const railOf = (id: string): Rail => methodById(id)?.rail ?? 'address';
 const ONLY_IF_LISTED = new Set(['usdt_base', 'usdt_optimism', 'usdc_optimism']);
 
 /** What is offered when a product's own list of accepted methods hasn't arrived: the wallet methods Bitrefill has always accepted, and XRP. */
-const SAFE_DEFAULT = new Set(['usdc_base', 'usdc_solana', 'usdc_erc20', 'usdc_polygon', 'usdc_arbitrum', 'usdt_erc20', 'usdt_polygon', 'usdt_arbitrum', 'usdt_solana', 'xrp']);
+const SAFE_DEFAULT = new Set(['usdc_base', 'usdc_solana', 'usdc_erc20', 'usdc_polygon', 'usdc_arbitrum', 'usdt_erc20', 'usdt_polygon', 'usdt_arbitrum', 'usdt_solana']);
+
+/** The Bluvfi-routed methods (XRP and the five swap chains): not Bitrefill methods, so a product's own list never has them, and they are valid for any product. */
+export const BLUVFI_ROUTED: ReadonlySet<string> = new Set(['xrp', 'zcash', 'hyperliquid', 'arc', 'tempo', 'robinhood']);
 
 type Accepted = { address_based?: string[]; link_only?: string[]; balance?: string[] } | undefined;
 
@@ -108,13 +120,13 @@ export function acceptedIds(pm: Accepted): Set<string> | null {
 }
 
 /**
- * The methods to offer for a product, grouped like the website. XRP is always there (it isn't a Bitrefill method, it is settled through a USDC
- * invoice). Fiat methods are left out: the app is crypto-first, as on the website.
+ * The methods to offer for a product, grouped like the website. XRP, Zcash, Hyperliquid, Arc, Tempo and Robinhood Chain are always there (they
+ * aren't Bitrefill methods, they are settled through a USDC invoice). Fiat methods are left out: the app is crypto-first, as on the website.
  */
 export function methodsForProduct(pm: Accepted): { group: MethodGroup; methods: PaymentMethod[] }[] {
   const accepted = acceptedIds(pm);
   const offered = PAYMENT_METHODS.filter((x) => {
-    if (x.id === 'xrp') return true;
+    if (BLUVFI_ROUTED.has(x.id)) return true;
     if (accepted) return accepted.has(x.id);
     return SAFE_DEFAULT.has(x.id) && !ONLY_IF_LISTED.has(x.id);
   });
@@ -136,6 +148,7 @@ export const CHAIN_NAME: Record<ChainKey, string> = {
   ethereum: 'Ethereum', base: 'Base', polygon: 'Polygon', arbitrum: 'Arbitrum', optimism: 'Optimism', bsc: 'BSC', solana: 'Solana', tron: 'Tron', ton: 'TON', sui: 'SUI',
   bitcoin: 'Bitcoin', lightning: 'Lightning', xrpl: 'XRP Ledger', litecoin: 'Litecoin', dogecoin: 'Dogecoin', dash: 'Dash', ark: 'ARK', tempo: 'Tempo', binance: 'Binance Pay', kraken: 'Kraken Pay',
   avalanche: 'Avalanche', plasma: 'Plasma', soneium: 'Soneium', xlayer: 'X Layer', celo: 'Celo', sonic: 'Sonic', worldchain: 'World Chain',
+  zcash: 'Zcash', hyperliquid: 'Hyperliquid', arc: 'Arc', robinhood: 'Robinhood Chain',
 };
 
 /** A sentence for what went wrong creating an order, so people never see a raw API error. */

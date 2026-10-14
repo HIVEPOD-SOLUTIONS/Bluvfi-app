@@ -25,7 +25,9 @@ import { API_BASE_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
 import { getTimeBasedGreeting } from '@/lib/greeting';
+import { ArcSendCard } from './ArcSendCard';
 import { BitrefillPaymentCard } from './BitrefillPaymentCard';
+import { ChainTopUpCard } from './ChainTopUpCard';
 import { CryptorefillsPaymentCard } from './CryptorefillsPaymentCard';
 import { DomaListingCard } from './DomaListingCard';
 import { DomaPaymentCard } from './DomaPaymentCard';
@@ -283,6 +285,14 @@ export function ChatSheet() {
                   // Doma: pays a domain order's voucher on the Doma chain from the user's wallet.
                   if (part.state === 'output-available' && out?.domaPayment === true) {
                     return <DomaPaymentCard key={part.toolCallId} toolCallId={part.toolCallId} output={out as any} />;
+                  }
+                  // Top up the Base wallet from Arc / Tempo / Robinhood / Zcash / Hyperliquid.
+                  if (part.state === 'output-available' && out?.chainTopUp === true) {
+                    return <ChainTopUpCard key={part.toolCallId} toolCallId={part.toolCallId} output={out as any} />;
+                  }
+                  // Arc: sends USDC on Arc from the user's wallet after they confirm.
+                  if (part.state === 'output-available' && out?.arcSend === true) {
+                    return <ArcSendCard key={part.toolCallId} toolCallId={part.toolCallId} output={out as any} />;
                   }
                   // Doma marketplace: buys a listed domain (Seaport fill) from the user's wallet.
                   if (part.state === 'output-available' && out?.domaListingBuy === true) {

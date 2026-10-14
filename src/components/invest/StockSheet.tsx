@@ -5,10 +5,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
+import { MoreChainsLink } from '@/components/dashboard/PaymentMethodPicker';
 import { useApiClient } from '@/hooks/use-api';
 import type { StockOrder, StockQuote, StockRow, StocksPortfolio } from '@/hooks/use-stocks';
 import { useAuth } from '@/lib/auth-context';
 import { executeStockTrade, fetchStockQuote, friendlyTradeError, orderFailureMessage, walletShare } from '@/lib/stocks-client';
+import { ChainTopUpPanel } from '@/components/dashboard/ChainTopUpPanel';
 import { PriceChart } from './PriceChart';
 import { StockLogo } from './StockLogo';
 
@@ -49,6 +51,8 @@ function StockTrade({ stock, portfolio, enabled, onClose }: Omit<StockSheetProps
   const [step, setStep] = useState<Step>('form');
   const [msg, setMsg] = useState<string | null>(null);
   const [result, setResult] = useState<StockOrder | null>(null);
+  // A buy funded from Arc, Tempo, Robinhood Chain, Zcash or Hyperliquid: the Base wallet is topped up first, then the trade goes ahead.
+  const [showTopUp, setShowTopUp] = useState(false);
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -193,17 +197,43 @@ function StockTrade({ stock, portfolio, enabled, onClose }: Omit<StockSheetProps
                 ? 'Filled at or better than your max price; anything unused is kept as credit for your next buy.'
                 : 'Filled at or better than your min price; the money goes straight to your wallet.'}
             </Text>
+            {quote.side === 'buy' && fromWallet > 0 ? (
+              showTopUp ? (
+                <ChainTopUpPanel
+                  token="usdc"
+                  amount={fromWallet.toFixed(2)}
+                  amountUsd={fromWallet}
+                  purpose="stocks"
+                  reference={`Buy ${Number(quote.quantity)} ${stock.ticker}`}
+                  onFunded={() => {
+                    setShowTopUp(false);
+                    void confirm();
+                  }}
+                />
+              ) : (
+                <MoreChainsLink onPress={() => setShowTopUp(true)} textStyle={styles.topUpLink} />
+              )
+            ) : null}
             <View style={styles.actions}>
               <View style={{ flex: 1 }}>
-                <Button variant="outline" fullWidth onPress={() => setStep('form')}>
+                <Button
+                  variant="outline"
+                  fullWidth
+                  onPress={() => {
+                    setShowTopUp(false);
+                    setStep('form');
+                  }}
+                >
                   Back
                 </Button>
               </View>
-              <View style={{ flex: 1 }}>
-                <Button variant="secondary" fullWidth onPress={confirm}>
-                  {`Confirm ${quote.side}`}
-                </Button>
-              </View>
+              {!(showTopUp && quote.side === 'buy' && fromWallet > 0) ? (
+                <View style={{ flex: 1 }}>
+                  <Button variant="secondary" fullWidth onPress={confirm}>
+                    {`Confirm ${quote.side}`}
+                  </Button>
+                </View>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -261,6 +291,7 @@ function StockTrade({ stock, portfolio, enabled, onClose }: Omit<StockSheetProps
 }
 
 const styles = StyleSheet.create({
+  topUpLink: { ...Type.small, color: Colors.sage, textDecorationLine: 'underline', textAlign: 'center' },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
   price: { ...Type.h1, color: Colors.tx0 },
   change: { ...Type.small },

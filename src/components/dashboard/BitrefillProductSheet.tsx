@@ -17,6 +17,9 @@ import type { CountryEntry } from '@/lib/bills-countries';
 import { priceRange } from '@/lib/bitrefill-catalog';
 import { methodLogos } from '@/lib/payment-logos';
 import { CHAIN_NAME, defaultMethod, friendlyInvoiceError, methodById, methodSummary, methodsForProduct } from '@/lib/payment-methods';
+import { listChainSwaps, payDepositFromWallet, payRouteSwap, startChainPurchase, type PurchaseRequestBody } from '@/lib/chain-swap-client';
+import { MIN_DEPOSIT_SWAP_USD, SWAP_CHAIN_META, isSwapChain, type SwapChain } from '@/lib/swap-chains';
+import { friendlyEvmError } from '@/lib/payments/evm-pay';
 import {
   DEPOSIT_POLL_GIVE_UP_MS,
   DIAL_CODES,
@@ -24,6 +27,7 @@ import {
   POLL_GIVE_UP_MS,
   acceptedMethodLabels,
   amountProblem,
+  chainRequestBody,
   checkoutKind,
   ctaLabel,
   depositFromInvoice,
@@ -68,6 +72,8 @@ interface DepositState {
   methodId: string;
   /** Set for XRP: pay the swap from the person's Bluvfi XRP wallet. */
   xrp?: XrpOrder;
+  /** Set for Zcash, Hyperliquid and Robinhood Chain: the swap behind the address, and where a failed payment is refunded. */
+  chain?: { swapId: string; chain: SwapChain; refundAddress: string };
 }
 
 interface Props {
@@ -87,7 +93,9 @@ interface Props {
  * product, each with its logo:
  *   - USDC / USDT on Base, Ethereum, Polygon, Arbitrum, Optimism or Solana pay from the Bluvfi wallet in one tap;
  *   - every other coin shows its exact deposit address and amount (with a QR) and completes by itself once it is sent;
- *   - XRP is settled through a USDC invoice, and can be paid from the Bluvfi XRP wallet.
+ *   - XRP is settled through a USDC invoice, and can be paid from the Bluvfi XRP wallet;
+ *   - Arc USDC and Tempo USDC.e are signed by the Bluvfi wallet (approve, then pay); Robinhood Chain ETH, Zcash and Hyperliquid USDC show an
+ *     address to pay (Robinhood Chain ETH can also be sent from the Bluvfi wallet). All five are settled in USDC behind the scenes.
  * The code, the eSIM link or the airtime confirmation shows here when Bitrefill delivers.
  */
 export function BitrefillProductSheet({ open, onClose, product: listed, section, country, onAskAi }: Props) {
@@ -95,7 +103,7 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
   const toast = useToast();
   const qc = useQueryClient();
   const successAd = useSuccessAd();
-  const { email: accountEmail } = useAuth();
+  const { email: accountEmail, getEvmWallet } = useAuth();
 
   const detail = useApiQuery<ProductDetail>(['bitrefill-product', listed?.id], `/api/bitrefill/products/${encodeURIComponent(listed?.id ?? '')}`, undefined, {
     enabled: open && !!listed,
@@ -121,6 +129,10 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
   const [deposit, setDeposit] = useState<DepositState | null>(null);
   const [xrpBusy, setXrpBusy] = useState(false);
   const [xrpError, setXrpError] = useState<string | null>(null);
+  const [chainRefund, setChainRefund] = useState('');
+  const [chainStage, setChainStage] = useState<string | null>(null);
+  const [chainBusy, setChainBusy] = useState(false);
+  const [chainError, setChainError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [waitTitle, setWaitTitle] = useState('Payment sent');
   const [result, setResult] = useState<{ code: string | null; esimLink: string | null; instructions: string | null } | null>(null);
@@ -142,6 +154,10 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
     setDeposit(null);
     setXrpBusy(false);
     setXrpError(null);
+    setChainRefund('');
+    setChainStage(null);
+    setChainBusy(false);
+    setChainError(null);
     setMessage(null);
     setWaitTitle('Payment sent');
     setResult(null);
@@ -192,7 +208,7 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
    * Watches an order until Bitrefill delivers it (or it fails or the wait runs out). A wallet payment moves on to a "payment sent" screen;
    * a deposit stays on its address screen with the status updating, because the person may still be sending.
    */
-  const watch = async (target: Tracked, opts: { stay?: boolean; giveUpMs?: number } = {}) => {
+  const watch = async (target: Tracked, opts: { stay?: boolean; giveUpMs?: number; swapId?: string } = {}) => {
     if (polling.current === target.invoiceId) return;
     polling.current = target.invoiceId;
     const startedAt = Date.now();
@@ -223,6 +239,17 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
           return;
         }
         setMessage(out.message);
+        // A payment from another chain: if its swap failed or expired, say where the money is instead of waiting for the full time.
+        if (opts.swapId) {
+          const row = (await listChainSwaps(call).catch(() => [])).find((r) => r.id === opts.swapId);
+          if (row && (row.status === 'failed' || row.status === 'expired')) {
+            setMessage(row.summary);
+            setStep('failed');
+            void qc.invalidateQueries({ queryKey: ['payments'] });
+            return;
+          }
+          if (row?.status === 'processing') setMessage('Payment received. It is being converted: usually a minute or two.');
+        }
       } catch (e) {
         // "Invoice not found" and the like: the order isn't visible yet, not a failure. Keep waiting.
         if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
@@ -273,6 +300,55 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
       const tracked = (invoiceId: string, accessToken?: string): Tracked => ({ invoiceId, accessToken, isTopup: kind === 'topup' });
       // Deposits and links finish on their own, so the successful-payment ad is loaded now, ready for when the order is delivered.
       if (chosen.rail !== 'wallet') successAd.prepare();
+
+      // Zcash, Hyperliquid, Arc, Tempo and Robinhood Chain aren't Bitrefill methods either: bluvfi's swap service converts what the person
+      // pays into the USDC the invoice is settled in. Arc and Tempo are signed by the Bluvfi wallet; the rest show an address to pay.
+      if (chosen.rail === 'chain') {
+        const chain = chosen.id as SwapChain;
+        if (!isSwapChain(chain)) throw new Error('That payment method isn’t available right now.');
+        const meta = SWAP_CHAIN_META[chain];
+        const fromWallet = meta.kind === 'route' || chain === 'robinhood';
+        const wallet = fromWallet ? getEvmWallet() : null;
+        // A failed payment is refunded to the Bluvfi wallet where it can hold the coin, otherwise to the address the person gives.
+        const refundAddress = wallet ? wallet.address : chainRefund.trim();
+        if (!meta.refundPattern.test(refundAddress)) throw new Error(`Enter ${meta.refundHint} so a failed payment can be refunded.`);
+        if (meta.kind === 'deposit' && usd !== null && usd < MIN_DEPOSIT_SWAP_USD) {
+          throw new Error(`This is too small to pay with ${meta.label}: the minimum is $${MIN_DEPOSIT_SWAP_USD.toFixed(2)}. Pick another method or a larger amount.`);
+        }
+        const purchase = await startChainPurchase(call, chainRequestBody(requestInput(), refundAddress) as unknown as PurchaseRequestBody);
+        const order = tracked(purchase.invoiceId, purchase.invoiceAccessToken);
+        paidFromWallet.current = false;
+        if (meta.kind === 'route') {
+          if (!wallet) throw new Error('Your wallet is still being set up. Try again in a moment.');
+          try {
+            await payRouteSwap({
+              chain,
+              payment: purchase.payment,
+              refundAddress: purchase.refundAddress,
+              reportUrl: `/api/bitrefill/chain-purchase/${encodeURIComponent(purchase.walletRequestId)}/transaction`,
+              wallet,
+              call,
+              onStage: (s) => setChainStage(s === 'approving' ? `Approving ${meta.symbol} on ${meta.label}…` : s === 'paying' ? `Paying ${purchase.amount} ${meta.symbol} on ${meta.label}…` : `Confirming on ${meta.label}…`),
+            });
+          } catch (e) {
+            throw new Error(friendlyEvmError(e, meta.label));
+          } finally {
+            setChainStage(null);
+          }
+          setWaitTitle(`Paid on ${meta.label}`);
+          void watch(order, { giveUpMs: DEPOSIT_POLL_GIVE_UP_MS, swapId: purchase.walletRequestId });
+          return;
+        }
+        if (!purchase.depositAddress) throw new Error('The deposit address wasn’t returned. Please try again or pick another method.');
+        setDeposit({
+          methodId: chosen.id,
+          chain: { swapId: purchase.walletRequestId, chain, refundAddress: purchase.refundAddress },
+          info: { address: purchase.depositAddress, amount: purchase.amount, currency: purchase.symbol, network: meta.label, expiresInMinutes: purchase.expirationMinutes ?? null, memo: purchase.depositMemo },
+        });
+        setStep('deposit');
+        void watch(order, { stay: true, giveUpMs: DEPOSIT_POLL_GIVE_UP_MS, swapId: purchase.walletRequestId });
+        return;
+      }
 
       // XRP isn't a Bitrefill method: it has its own endpoint, which settles the invoice in USDC behind the scenes.
       if (chosen.rail === 'xrp') {
@@ -327,6 +403,7 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
       void watch(tracked(invoiceId, token), { stay: true, giveUpMs: DEPOSIT_POLL_GIVE_UP_MS });
     } catch (e) {
       polling.current = null;
+      setChainStage(null);
       setMessage(friendlyInvoiceError(e instanceof ApiError ? e.message : (e as Error)?.message));
       setStep('pick');
     }
@@ -345,6 +422,22 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
       setXrpError((e as Error)?.message || 'The transfer didn’t go through. You can still send the XRP from another wallet.');
     } finally {
       setXrpBusy(false);
+    }
+  };
+
+  /** Robinhood Chain ETH can be sent from the Bluvfi wallet in one tap, as the website's button does. */
+  const payChainFromWallet = async () => {
+    const c = deposit?.chain;
+    if (!c || !deposit?.info.amount) return;
+    setChainBusy(true);
+    setChainError(null);
+    try {
+      await payDepositFromWallet({ chain: c.chain, depositAddress: deposit.info.address, amount: deposit.info.amount, wallet: getEvmWallet(), track: { walletRequestId: c.swapId, call } });
+      setMessage('Sent. Waiting for the network to confirm…');
+    } catch (e) {
+      setChainError(friendlyEvmError(e, SWAP_CHAIN_META[c.chain].label));
+    } finally {
+      setChainBusy(false);
     }
   };
 
@@ -592,6 +685,21 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
               <View style={{ gap: 8 }}>
                 <Text style={styles.label}>PAY WITH</Text>
                 <PaymentMethodPicker groups={groups} selected={method} onSelect={setMethod} />
+                {chosen?.rail === 'chain' && isSwapChain(chosen.id) ? (
+                  <>
+                    <Text style={styles.hint}>{SWAP_CHAIN_META[chosen.id].howToPay}</Text>
+                    {SWAP_CHAIN_META[chosen.id].needsRefundAddress ? (
+                      <Field
+                        label={`Refund address (${SWAP_CHAIN_META[chosen.id].label})`}
+                        value={chainRefund}
+                        onChangeText={setChainRefund}
+                        placeholder={SWAP_CHAIN_META[chosen.id].refundPlaceholder}
+                        hint={`If the payment can’t complete, it is refunded here. Use ${SWAP_CHAIN_META[chosen.id].refundHint}.`}
+                        error={tried && chainRefund.trim() && !SWAP_CHAIN_META[chosen.id].refundPattern.test(chainRefund.trim()) ? `That isn’t ${SWAP_CHAIN_META[chosen.id].refundHint}.` : null}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
               </View>
 
               <View style={styles.summaryStack}>
@@ -602,8 +710,13 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
               </View>
 
               {message ? <Text style={styles.error}>{message}</Text> : null}
+              {step === 'creating' && chainStage ? <Text style={styles.hint}>{chainStage}</Text> : null}
               <Button variant="secondary" fullWidth loading={step === 'creating'} onPress={createOrder}>
-                {selectedAmountLabel ? `Pay ${selectedAmountLabel} · ${paymentLabel}` : `Pay · ${paymentLabel}`}
+                {chosen?.rail === 'chain' && isSwapChain(chosen.id) && SWAP_CHAIN_META[chosen.id].kind === 'deposit'
+                  ? `Get ${chosen.token} deposit address · ${CHAIN_NAME[chosen.chain]}`
+                  : selectedAmountLabel
+                    ? `Pay ${selectedAmountLabel} · ${paymentLabel}`
+                    : `Pay · ${paymentLabel}`}
               </Button>
 
               {description || instructions || product.termsConditions || (product.reviews?.length ?? 0) > 0 ? (
@@ -638,7 +751,14 @@ export function BitrefillProductSheet({ open, onClose, product: listed, section,
                 info={deposit.info}
                 logo={methodLogos(methodById(deposit.methodId) ?? PAYMENT_FALLBACK).main}
                 status={message ?? 'Waiting for your payment…'}
-                action={deposit.xrp?.sidebarWalletId ? { label: 'Pay from my Bluvfi XRP wallet', onPress: payXrpFromWallet, loading: xrpBusy, error: xrpError } : null}
+                action={
+                  deposit.xrp?.sidebarWalletId
+                    ? { label: 'Pay from my Bluvfi XRP wallet', onPress: payXrpFromWallet, loading: xrpBusy, error: xrpError }
+                    : deposit.chain?.chain === 'robinhood' && deposit.info.amount
+                      ? { label: `Send ${deposit.info.amount} ETH from my Bluvfi wallet`, onPress: payChainFromWallet, loading: chainBusy, error: chainError }
+                      : null
+                }
+                note={deposit.chain ? `${SWAP_CHAIN_META[deposit.chain.chain].howToPay} Send exactly the amount shown. If it can’t complete, it is refunded to the address ending ${deposit.chain.refundAddress.slice(-6)}.` : null}
               />
               {deposit.info.paymentLink && !deposit.info.amount ? (
                 <Button variant="outline" fullWidth onPress={() => Linking.openURL(deposit.info.paymentLink as string).catch(() => {})}>

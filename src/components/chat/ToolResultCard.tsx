@@ -4,6 +4,8 @@ import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { useChatSheet } from '@/lib/chat-context';
 import { useIsCreator } from '@/hooks/use-shar';
 import { PayFromWallet } from './PayFromWallet';
+import { RobinhoodWalletPay } from './RobinhoodWalletPay';
+import { SWAP_CHAIN_META, isSwapChain, type SwapChain } from '@/lib/swap-chains';
 import { CoinLogo } from '@/components/crypto/CoinLogo';
 import { formatPrice } from '@/components/crypto/CoinSheet';
 
@@ -181,6 +183,7 @@ const BITREFILL_WALLET_METHODS: Record<string, { coin: string; network: string }
 function PendingPaymentCard({ data }: { data: any }) {
   const isTopup = !!data.isTopup;
   const walletMethod = BITREFILL_WALLET_METHODS[data.paymentMethod ?? ''];
+  const swapMeta = isSwapChain(data.paymentMethod) ? SWAP_CHAIN_META[data.paymentMethod as SwapChain] : null;
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
@@ -198,6 +201,23 @@ function PendingPaymentCard({ data }: { data: any }) {
               {data.paymentAddress}
             </Text>
           </View>
+          {swapMeta ? (
+            <Text style={styles.sub}>
+              {swapMeta.howToPay} Send exactly <Text style={styles.strong}>{data.paymentAmount} {data.paymentCurrency}</Text>.
+            </Text>
+          ) : null}
+          {data.paymentMethod === 'robinhood' && data.paymentAddress && data.paymentAmount != null ? (
+            <RobinhoodWalletPay address={data.paymentAddress} amount={String(data.paymentAmount)} invoiceId={data.invoiceId} walletRequestId={data.walletRequestId} />
+          ) : null}
+          {data.depositMemo ? (
+            <View style={styles.codeBox}>
+              <Text style={styles.warn}>Include this memo, or the payment can’t be matched</Text>
+              <Text style={styles.mono} selectable>
+                {data.depositMemo}
+              </Text>
+            </View>
+          ) : null}
+          {data.refundAddress ? <Text style={styles.tinyText}>If it can’t complete, it is refunded to {data.refundAddress}.</Text> : null}
           {walletMethod && data.paymentAmount != null ? (
             <PayFromWallet
               coin={walletMethod.coin}

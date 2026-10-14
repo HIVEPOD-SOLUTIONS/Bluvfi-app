@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
+import { ChainTopUpPanel } from '@/components/dashboard/ChainTopUpPanel';
 import { StockLogo } from '@/components/invest/StockLogo';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
+import { MoreChainsLink } from '@/components/dashboard/PaymentMethodPicker';
 import { useApiClient } from '@/hooks/use-api';
 import type { StockOrder, StockQuote, StocksPortfolio } from '@/hooks/use-stocks';
 import { useAuth } from '@/lib/auth-context';
@@ -17,6 +19,7 @@ import {
   watchStockOrder,
   type TradeStep,
 } from '@/lib/stocks-client';
+import { isSwapChain, type SwapChain } from '@/lib/swap-chains';
 
 /**
  * Confirm card for the assistant's trade_stock tool — the same trade as Invest → Stocks. Nothing happens
@@ -30,6 +33,9 @@ type Output = {
   ticker: string;
   name: string;
   side: 'buy' | 'sell';
+  /** A buy paid from Arc / Tempo / Robinhood / Zcash / Hyperliquid: top up the Base wallet first. */
+  fundFrom?: SwapChain;
+  refundAddress?: string;
   quote: StockQuote;
   // Set after the card reports back:
   done?: boolean;
@@ -56,6 +62,7 @@ export function StockTradeCard({ toolCallId, output }: { toolCallId: string; out
   const [order, setOrder] = useState<Pick<StockOrder, 'status' | 'fillPrice' | 'fillQuantity'> | null>(
     output.done ? { status: output.status ?? 'pending', fillPrice: output.fillPrice, fillQuantity: output.fillQuantity } : null,
   );
+  const [showTopUp, setShowTopUp] = useState(output.side === 'buy' && isSwapChain(output.fundFrom));
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -166,6 +173,25 @@ export function StockTradeCard({ toolCallId, output }: { toolCallId: string; out
               </View>
             ))}
           </View>
+          {buying && fromWallet > 0 && showTopUp ? (
+            <ChainTopUpPanel
+              inChat
+              token="usdc"
+              amount={fromWallet.toFixed(2)}
+              amountUsd={fromWallet}
+              purpose="stocks"
+              reference={`Buy ${Number(quote.quantity)} ${output.ticker}`}
+              initialChain={isSwapChain(output.fundFrom) ? output.fundFrom : undefined}
+              initialRefundAddress={output.refundAddress}
+              onFunded={() => {
+                setShowTopUp(false);
+                void confirm();
+              }}
+            />
+          ) : null}
+          {buying && fromWallet > 0 && !showTopUp ? (
+            <MoreChainsLink onPress={() => setShowTopUp(true)} textStyle={styles.topUpLink} />
+          ) : null}
           <View style={styles.actions}>
             <View style={{ flex: 1 }}>
               <Button
@@ -180,11 +206,13 @@ export function StockTradeCard({ toolCallId, output }: { toolCallId: string; out
                 Cancel
               </Button>
             </View>
-            <View style={{ flex: 1 }}>
-              <Button variant="secondary" fullWidth onPress={confirm}>
-                {`Confirm ${output.side}`}
-              </Button>
-            </View>
+            {!(showTopUp && buying && fromWallet > 0) ? (
+              <View style={{ flex: 1 }}>
+                <Button variant="secondary" fullWidth onPress={confirm}>
+                  {`Confirm ${output.side}`}
+                </Button>
+              </View>
+            ) : null}
           </View>
         </>
       )}
@@ -220,6 +248,7 @@ export function StockTradeCard({ toolCallId, output }: { toolCallId: string; out
 }
 
 const styles = StyleSheet.create({
+  topUpLink: { ...Type.small, color: Colors.sage, textDecorationLine: 'underline', textAlign: 'center' },
   card: {
     backgroundColor: Colors.bg1,
     borderWidth: 1,

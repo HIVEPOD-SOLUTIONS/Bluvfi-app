@@ -15,9 +15,11 @@ import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiClient } from '@/hooks/use-api';
 import { useBalances } from '@/hooks/use-balances';
-import { BridgeTab, InfoBox, SendTab, UnifiedBalanceTab, useCopy } from './WalletTabs';
+import type { BridgeDestinationChain } from '@/lib/arc-kit';
+import { ChainLabel } from './PaymentMethodPicker';
+import { ArcTab, BridgeTab, InfoBox, SendTab, UnifiedBalanceTab, useCopy } from './WalletTabs';
 
-type Tab = 'buy' | 'balances' | 'send' | 'bridge' | 'solana';
+type Tab = 'buy' | 'balances' | 'send' | 'bridge' | 'arc' | 'solana';
 
 interface FundWalletSheetProps {
   open: boolean;
@@ -143,9 +145,7 @@ function BuyTab({ evmAddress, solanaAddress }: { evmAddress?: string; solanaAddr
               onPress={() => setNetwork(n.key)}
               style={[styles.chip, selected?.key === n.key && styles.chipActive]}
             >
-              <Text style={[styles.chipText, selected?.key === n.key && styles.chipTextActive]}>
-                {n.icon} {n.label}
-              </Text>
+              <ChainLabel name={n.label} icon={n.icon} textStyle={[styles.chipText, selected?.key === n.key && styles.chipTextActive]} />
             </Pressable>
           ))}
         </View>
@@ -177,7 +177,10 @@ function SolanaTab({ solanaAddress }: { solanaAddress?: string }) {
       <View style={styles.solBalanceCard}>
         <Text style={styles.solLabel}>Solana USDC Balance</Text>
         <Text style={styles.solBalance}>{isLoading ? 'Loading…' : usd(data?.solUsdc ?? 0)}</Text>
-        <Text style={styles.solSub}>Mainnet USDC (◎ Solana)</Text>
+        <View style={styles.solSubRow}>
+          <Text style={styles.solSub}>Mainnet USDC on</Text>
+          <ChainLabel name="Solana" textStyle={styles.solSub} size={14} />
+        </View>
       </View>
 
       <View>
@@ -193,7 +196,10 @@ function SolanaTab({ solanaAddress }: { solanaAddress?: string }) {
       </View>
 
       <View style={styles.solInstructions}>
-        <Text style={styles.solInstructionsTitle}>◎ Or send to your Solana wallet manually</Text>
+        <View style={styles.solSubRow}>
+          <ChainLabel name="Solana" textStyle={styles.solInstructionsTitle} size={18} />
+          <Text style={styles.solInstructionsTitle}>· Or send to your wallet manually</Text>
+        </View>
         {[
           ['Send ', 'USDC on Solana mainnet', ' to the address above'],
           ['From Phantom, Backpack, Coinbase Wallet, or any Solana wallet'],
@@ -227,13 +233,16 @@ function SolanaTab({ solanaAddress }: { solanaAddress?: string }) {
 /** The wallet sheet opened from the Wallets card / low-balance banner: ways to fund and see balances. */
 export function FundWalletSheet({ open, onClose, evmAddress, solanaAddress }: FundWalletSheetProps) {
   const [tab, setTab] = useState<Tab>('buy');
+  // The Arc tab's "Bring USDC to Arc" opens Bridge with Arc already chosen.
+  const [bridgeDest, setBridgeDest] = useState<BridgeDestinationChain | undefined>(undefined);
 
-  // Same five tabs as the web's wallet sheet (Solana only when the user has a Solana wallet).
+  // Same six tabs as the web's wallet sheet (Solana only when the user has a Solana wallet).
   const tabs: { key: Tab; label: string }[] = [
     { key: 'buy', label: '💳 Buy' },
     { key: 'balances', label: '⊞ Balances' },
     { key: 'send', label: '↗ Send' },
     { key: 'bridge', label: '⇌ Bridge' },
+    { key: 'arc', label: '🟣 Arc' },
     ...(solanaAddress ? [{ key: 'solana' as Tab, label: '◎ Solana' }] : []),
   ];
 
@@ -246,7 +255,11 @@ export function FundWalletSheet({ open, onClose, evmAddress, solanaAddress }: Fu
             onPress={() => setTab(t.key)}
             style={[styles.tab, tab === t.key && (t.key === 'solana' ? styles.tabActiveSolana : styles.tabActive)]}
           >
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            {t.key === 'arc' || t.key === 'solana' ? (
+              <ChainLabel name={t.key === 'arc' ? 'Arc' : 'Solana'} textStyle={[styles.tabText, tab === t.key && styles.tabTextActive]} />
+            ) : (
+              <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            )}
           </Pressable>
         ))}
       </ScrollView>
@@ -256,7 +269,18 @@ export function FundWalletSheet({ open, onClose, evmAddress, solanaAddress }: Fu
       {tab === 'send' &&
         (evmAddress ? <SendTab agentAddress={evmAddress} /> : <InfoBox>Your wallet is still being set up. Try again in a moment.</InfoBox>)}
       {tab === 'bridge' &&
-        (evmAddress ? <BridgeTab agentAddress={evmAddress} /> : <InfoBox>Your wallet is still being set up. Try again in a moment.</InfoBox>)}
+        (evmAddress ? <BridgeTab key={bridgeDest ?? 'default'} agentAddress={evmAddress} initialDestination={bridgeDest} /> : <InfoBox>Your wallet is still being set up. Try again in a moment.</InfoBox>)}
+      {tab === 'arc' &&
+        (evmAddress ? (
+          <ArcTab
+            onBridgeToArc={() => {
+              setBridgeDest('Arc');
+              setTab('bridge');
+            }}
+          />
+        ) : (
+          <InfoBox>Your wallet is still being set up. Try again in a moment.</InfoBox>
+        ))}
       {tab === 'solana' && <SolanaTab solanaAddress={solanaAddress} />}
     </BottomSheet>
   );
@@ -312,6 +336,7 @@ const styles = StyleSheet.create({
     ...Type.h1,
     color: Colors.tx0,
   },
+  solSubRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   solSub: {
     ...Type.small,
     color: Colors.tx1,

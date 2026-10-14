@@ -24,12 +24,15 @@ import type { CrPartnerRequest, CrRail } from '@/lib/cryptorefills-types';
 import { crChainLogo, crTokenLogo } from '@/lib/cryptorefills-logos';
 import { chainLogo, tokenLogo } from '@/lib/payment-logos';
 import { DIAL_CODES, emailProblem, giftProblem, phoneProblem, toE164 } from '@/lib/product-checkout';
+import { ChainTopUpPanel } from './ChainTopUpPanel';
 import { Logo } from './CatalogParts';
 import { Chip, Field, SummaryRow, Tag } from './ProductParts';
+import { SWAP_CHAINS, SWAP_CHAIN_META, type SwapChain } from '@/lib/swap-chains';
 import { LogoChip, TokenChainLogo } from './PaymentMethodPicker';
 
 type Step = 'detail' | 'quoting' | 'pay';
-type PayChoice = { rail: CrRail } | { other: CrPaymentMethod };
+/** 'chain': top up the Bluvfi wallet on Base from Arc, Tempo, Robinhood Chain, Zcash or Hyperliquid first, then pay on Base as usual. */
+type PayChoice = { rail: CrRail } | { other: CrPaymentMethod } | { chain: SwapChain };
 
 interface Props {
   open: boolean;
@@ -61,7 +64,8 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
   const [email, setEmail] = useState(accountEmail ?? '');
   const [phone, setPhone] = useState('');
   const [pay, setPay] = useState<PayChoice>({ rail: 'base' });
-  const [otherCoin, setOtherCoin] = useState<string | null>(null);
+  // Set once the top-up from another chain has landed on Base, so the normal payment can go ahead.
+  const [funded, setFunded] = useState(false);
   const [tried, setTried] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [quote, setQuote] = useState<number | null>(null);
@@ -78,7 +82,7 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
     setMessage(null);
     setQuote(null);
     setPay({ rail: 'base' });
-    setOtherCoin(null);
+    setFunded(false);
     setIsGift(false);
     setGiftName('');
     setGiftEmail('');
@@ -102,8 +106,15 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
   const hasProblem = Object.values(problems).some(Boolean) || !item;
   const fixedPrice = item ? fixedPriceUsd(item) : null;
 
-  const coins = useMemo(() => [...new Set(methods.map((m) => m.coin))].filter((c) => !(c.toUpperCase() === 'USDC' && methods.every((m) => m.coin !== c || ['base', 'solana'].includes(m.network.toLowerCase())))), [methods]);
-  const networks = otherCoin ? methods.filter((m) => m.coin === otherCoin) : [];
+  // Every coin with every network it can be sent on, listed up front like Bitrefill's (USDC on Base and Solana are the gasless chips above).
+  const coinGroups = useMemo(() => {
+    const by = new Map<string, CrPaymentMethod[]>();
+    for (const m of methods) {
+      if (m.coin.toUpperCase() === 'USDC' && ['base', 'solana'].includes(m.network.toLowerCase())) continue;
+      by.set(m.coin, [...(by.get(m.coin) ?? []), m]);
+    }
+    return [...by.entries()];
+  }, [methods]);
 
   const proceed = async () => {
     setTried(true);
@@ -159,8 +170,10 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
       };
       return { ...common, payWith: 'other' as const, partnerOrder };
     }
-    const fallback = buildFallback({ email, beneficiary, item, productValue, country: country.code, rail: pay.rail, methods });
-    return { ...common, payWith: pay.rail, rail: pay.rail, order: buildOrder({ email, beneficiary, item, productValue }), ...(fallback ? { fallbackPartnerOrder: fallback } : {}) };
+    // Paying from another chain ends as a gasless USDC payment on Base, once the wallet has been topped up.
+    const rail: CrRail = 'rail' in pay ? pay.rail : 'base';
+    const fallback = buildFallback({ email, beneficiary, item, productValue, country: country.code, rail, methods });
+    return { ...common, payWith: rail, rail, order: buildOrder({ email, beneficiary, item, productValue }), ...(fallback ? { fallbackPartnerOrder: fallback } : {}) };
   }, [step, item, brand, quote, kind, email, phone, country.code, num, pay, methods, gifting, giftEmail]);
 
   const onReport = (r: Record<string, unknown>) => {
@@ -168,7 +181,7 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
   };
 
   const range = brand?.min && brand?.max ? `${brand.min} – ${brand.max}` : null;
-  const payLabel = 'other' in pay ? `${pay.other.coin} · ${pay.other.network}` : `USDC · ${pay.rail === 'base' ? 'Base' : 'Solana'}`;
+  const payLabel = 'other' in pay ? `${pay.other.coin} · ${pay.other.network}` : 'chain' in pay ? `${SWAP_CHAIN_META[pay.chain].label}, then USDC · Base` : `USDC · ${pay.rail === 'base' ? 'Base' : 'Solana'}`;
 
   return (
     <BottomSheet open={open} onClose={onClose} title={step === 'detail' ? 'Product' : 'Checkout'} snapPoints={['92%']} scrollable>
@@ -195,7 +208,11 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
                 <SummaryRow label={isTopup ? 'To' : gifting ? 'Your receipt' : 'Receipt to'} value={isTopup ? output.recipient : email.trim()} />
                 <SummaryRow label="Pay with" value={payLabel} />
               </View>
-              <CryptorefillsPaymentCard toolCallId={`product-${brand.brand_name}`} output={output} onReport={onReport} />
+              {'chain' in pay && !funded ? (
+                <ChainTopUpPanel key={pay.chain} initialChain={pay.chain} token="usdc" amount={output.priceUsd.toFixed(2)} amountUsd={output.priceUsd} purpose="cryptorefills" reference={output.productName} title={`Pay $${output.priceUsd.toFixed(2)} from another chain`} onFunded={() => setFunded(true)} />
+              ) : (
+                <CryptorefillsPaymentCard toolCallId={`product-${brand.brand_name}`} output={output} onReport={onReport} />
+              )}
               <Pressable onPress={() => setStep('detail')} hitSlop={8} style={{ alignSelf: 'center' }}>
                 <Text style={styles.link}>Change the order</Text>
               </Pressable>
@@ -263,25 +280,36 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
                     <View style={styles.tags}>
                       <LogoChip logo={<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('base')} />} label="USDC · Base" sub="No gas" selected={'rail' in pay && pay.rail === 'base'} onPress={() => setPay({ rail: 'base' })} />
                       <LogoChip logo={<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('solana')} />} label="USDC · Solana" sub="No gas" selected={'rail' in pay && pay.rail === 'solana'} onPress={() => setPay({ rail: 'solana' })} />
+                      {SWAP_CHAINS.map((c) => (
+                        <LogoChip key={c} logo={<TokenChainLogo token={chainLogo(c)} />} label={SWAP_CHAIN_META[c].label} sub={`${SWAP_CHAIN_META[c].symbol} · via Base`} selected={'chain' in pay && pay.chain === c} onPress={() => { setPay({ chain: c }); setFunded(false); }} />
+                      ))}
                     </View>
-                    {coins.length > 0 ? (
+                    {coinGroups.length > 0 ? (
                       <>
-                        <Text style={styles.hint}>Or another coin, sent to a deposit address:</Text>
-                        <View style={styles.tags}>
-                          {coins.map((c) => (
-                            <LogoChip key={c} logo={<TokenChainLogo token={crTokenLogo(c)} />} label={c} selected={otherCoin === c && 'other' in pay} onPress={() => { setOtherCoin(c); const ns = methods.filter((m) => m.coin === c); if (ns.length) setPay({ other: ns[0] }); }} />
-                          ))}
-                        </View>
-                        {networks.length > 0 ? (
-                          <>
-                            <Text style={styles.hint}>Network for {otherCoin}:</Text>
+                        <Text style={styles.hint}>Or another coin or network, sent to a deposit address:</Text>
+                        {coinGroups.map(([coin, ms]) => (
+                          <View key={coin} style={{ gap: 6 }}>
+                            <Text style={styles.coinTitle}>{coin}</Text>
                             <View style={styles.tags}>
-                              {networks.map((m) => (
-                                <LogoChip key={m.network} logo={<TokenChainLogo token={crChainLogo(m.network, m.coin)} />} label={m.network} selected={'other' in pay && pay.other.network === m.network && pay.other.coin === m.coin} onPress={() => setPay({ other: m })} />
-                              ))}
+                              {ms.map((m) => {
+                                const token = crTokenLogo(coin);
+                                const chain = crChainLogo(m.network, coin);
+                                // A coin on its own chain (BTC on Bitcoin) needs no second logo.
+                                const badge = chain.uris[0] && chain.uris[0] === token.uris[0] ? null : chain;
+                                return (
+                                  <LogoChip
+                                    key={`${coin}-${m.network}`}
+                                    logo={<TokenChainLogo token={token} chain={badge} />}
+                                    label={m.network}
+                                    sub={coin}
+                                    selected={'other' in pay && pay.other.network === m.network && pay.other.coin === m.coin}
+                                    onPress={() => setPay({ other: m })}
+                                  />
+                                );
+                              })}
                             </View>
-                          </>
-                        ) : null}
+                          </View>
+                        ))}
                       </>
                     ) : null}
                   </View>
@@ -312,6 +340,7 @@ const styles = StyleSheet.create({
   skeleton: { height: 12, borderRadius: 6, backgroundColor: 'rgba(242,240,232,0.06)' },
   small: { ...Type.small, color: Colors.tx1 },
   hint: { ...Type.small, color: Colors.tx2 },
+  coinTitle: { ...Type.small, fontFamily: Fonts.sansSemiBold, color: Colors.tx1, letterSpacing: 0.6 },
   label: { ...Type.label, color: Colors.tx2 },
   link: { ...Type.body, fontFamily: Fonts.sansSemiBold, color: Colors.sage },
   error: { ...Type.small, color: Colors.redAlert },

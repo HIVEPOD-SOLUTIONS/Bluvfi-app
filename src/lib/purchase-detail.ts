@@ -1,4 +1,5 @@
 import type { Payment } from '@/lib/api-types';
+import { SWAP_CHAIN_META } from '@/lib/swap-chains';
 
 /** A Bitrefill order record from `/api/bitrefill/orders` (the delivery details live here, not on the payment). */
 export interface BitrefillOrder {
@@ -44,6 +45,13 @@ export function findOrder(orders: readonly BitrefillOrder[] | undefined, payment
   return orders.find((o) => o.invoiceId === payment.referenceId) ?? null;
 }
 
+// Explorers for the chains bluvfi's swap service pays from (see swap-chains.ts); Zcash and Hyperliquid hashes aren't EVM hashes, so they get none.
+const SWAP_EXPLORER: Record<string, ((hash: string) => string | null) | undefined> = {
+  arc: SWAP_CHAIN_META.arc.explorerTx,
+  tempo: SWAP_CHAIN_META.tempo.explorerTx,
+  robinhood: SWAP_CHAIN_META.robinhood.explorerTx,
+};
+
 const EXPLORERS: [RegExp, string][] = [
   [/base/i, 'https://basescan.org/tx/'],
   [/ethereum|mainnet/i, 'https://etherscan.io/tx/'],
@@ -61,6 +69,9 @@ export function explorerUrl(payment: Pick<Payment, 'chain' | 'txHash' | 'descrip
   if (chain === 'solana') return /^[1-9A-HJ-NP-Za-km-z]{43,90}$/.test(hash) ? `https://solscan.io/tx/${hash}` : null;
   if (chain === 'xrpl' || chain === 'xrp') return /^[0-9A-Fa-f]{64}$/.test(hash) ? `https://livenet.xrpl.org/transactions/${hash}` : null;
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) return null;
+  // Payments made from Arc, Tempo or Robinhood Chain carry their own network, so the link needs no guessing.
+  const swapExplorer = SWAP_EXPLORER[chain];
+  if (swapExplorer) return swapExplorer(hash);
   const network = parsePurchase(payment.description).method ?? '';
   const known = EXPLORERS.find(([re]) => re.test(network));
   return known ? known[1] + hash : null;

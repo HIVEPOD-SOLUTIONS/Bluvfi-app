@@ -13,7 +13,7 @@ export const ACTIVITY_SOURCES: { key: ActivitySource; label: string }[] = [
   { key: 'commission', label: 'Commission' },
 ];
 
-export type ActivityKind = 'purchase' | 'provider' | 'claim' | 'topup' | 'call' | 'refund' | 'earned' | 'withdrawal';
+export type ActivityKind = 'purchase' | 'provider' | 'claim' | 'spark' | 'prize' | 'topup' | 'call' | 'refund' | 'earned' | 'withdrawal';
 export type ActivityState = 'done' | 'pending' | 'review' | 'sending' | 'rejected';
 
 export interface ActivityItem {

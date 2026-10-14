@@ -11,7 +11,9 @@ import {
 } from 'viem';
 import { createEvmAdapter, getArcKit } from '@/lib/arc-kit';
 import { evmChain, isUserRejection, type Eip1193Provider, type EvmWallet } from '@/lib/payments/evm-common';
+import { arcChain } from '@/lib/arc-chain';
 import { tryRelayUsdc } from '@/lib/payments/gas-relay';
+import { tempoChain } from '@/lib/swap-chains';
 
 /**
  * Every EVM payment from the user's wallet goes through here (Bitrefill, stocks, Cryptorefills deposits,
@@ -52,6 +54,8 @@ const ARCKIT_CHAINS: Record<number, string> = {
   137: 'Polygon',
   42161: 'Arbitrum',
   10: 'Optimism',
+  // Arc mainnet needs @circle-fin/app-kit 1.15 or later.
+  [arcChain.id]: 'Arc',
 };
 
 // USDT's transfer() on some chains returns nothing — a stripped ABI avoids decode errors.
@@ -141,9 +145,12 @@ export async function payEvm(opts: {
   try {
     onLayer?.(2);
     const account = wallet.address as Hex;
-    // Check native gas first so a missing balance is a clean, catchable error.
-    const gas = await evmPublicClient(payment.chainId).getBalance({ address: account });
-    if (gas === BigInt(0)) throw new Error(`No native gas: no ${chain.nativeCurrency.symbol} on ${chain.name}`);
+    // Check native gas first so a missing balance is a clean, catchable error. Tempo has no native gas token (fees are paid in a
+    // stablecoin), so there is no balance to check there.
+    if (payment.chainId !== tempoChain.id) {
+      const gas = await evmPublicClient(payment.chainId).getBalance({ address: account });
+      if (gas === BigInt(0)) throw new Error(`No native gas: no ${chain.nativeCurrency.symbol} on ${chain.name}`);
+    }
     const client = createWalletClient({ account, chain, transport: custom(await wallet.getProvider()) });
     await client.switchChain({ id: payment.chainId });
     const hash = await client.sendTransaction({ account, chain, to: payment.to, data: payment.data, value: payment.value });

@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { router } from 'expo-router';
 import { useApiClient } from './use-api';
 import { useShar } from './use-shar';
+import { retryPendingRouteReports, type ApiCall } from '@/lib/chain-swap-client';
 import { clearInbox, loadInboxKey, pollInbox, saveInbox } from '@/lib/inbox-poll';
 import { listenForReminderTaps, loadRemindersPref, remindersAvailable, remindersEnabled, subscribeReminders, syncReminders, turnOffReminders, turnOnReminders } from '@/lib/reminders';
 import { sparkDay } from '@/lib/spark-streak';
@@ -78,11 +79,19 @@ export function useReminders() {
  * Keeps things that live outside the app in step with the Spark. Mounted once for the signed-in app:
  *  • the pending reminders (collecting today's moves the streak reminder to tomorrow, a new week moves the trial one);
  *  • the alerts check: once on launch, whenever the app comes back to the front, and the background schedule restored;
+ *  • a signed-but-unreported Arc or Tempo payment, handed to the server once per launch;
  *  • the home-screen widget's streak;
  *  • and it opens the right screen when a notification is tapped.
  */
 export function useReminderSync() {
   const { on } = useReminders();
+  const call = useApiClient();
+  // A payment from Arc or Tempo that was signed but not reported (the app closed right after) is handed to the server now.
+  useEffect(() => {
+    retryPendingRouteReports(call as ApiCall).catch(() => {});
+    // Once per launch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const spark = useShar().data?.spark;
   const collectedToday = spark?.collectedToday;
   const streak = spark?.streak;

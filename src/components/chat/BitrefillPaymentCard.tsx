@@ -3,12 +3,18 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Button } from '@/components/ui/Button';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
+import { useApiClient } from '@/hooks/use-api';
 import { useAuth } from '@/lib/auth-context';
+import { payRouteSwap, startChainPurchase, type PurchaseRequestBody } from '@/lib/chain-swap-client';
+import { SWAP_CHAIN_META } from '@/lib/swap-chains';
+import { chainLogoByName, tokenLogo } from '@/lib/payment-logos';
+import { RoundLogo } from '@/components/dashboard/PaymentMethodPicker';
 import { useChatSheet } from '@/lib/chat-context';
 import { PayFromPicker } from '@/components/wallet/PayFromPicker';
 import { useSolanaPaySource } from '@/lib/wallet-connection';
 import { useSuccessAd } from '@/hooks/use-success-ad';
 import { EVM_NETWORK_LABEL, friendlyBitrefillError, isManualMethod, payBitrefillInvoice } from '@/lib/payments/bitrefill';
+import { friendlyEvmError } from '@/lib/payments/evm-pay';
 
 export interface BitrefillPendingPayment {
   invoiceId: string;
@@ -18,12 +24,18 @@ export interface BitrefillPendingPayment {
   paymentCurrency?: string;
   isTopup?: boolean;
   expiresInMinutes?: number;
+  /** paymentMethod 'arc' / 'tempo' only: what to buy. The invoice is created when the person taps Pay (the route is priced live). */
+  arcCheckout?: { productId: string; packageId: string; recipientEmail?: string; recipientName?: string; sendTo?: string };
 }
 
 type State = 'idle' | 'paying' | 'done' | 'error' | 'manual';
 
 function tokenForMethod(pm: string): string {
   if (pm === 'xrp') return 'XRP';
+  if (pm === 'zcash') return 'ZEC';
+  if (pm === 'hyperliquid' || pm === 'arc') return 'USDC';
+  if (pm === 'tempo') return 'USDC.e';
+  if (pm === 'robinhood') return 'ETH';
   if (pm.includes('usdt')) return 'USDT';
   if (pm.includes('usdc')) return 'USDC';
   if (pm === 'bitcoin' || pm === 'lightning') return 'BTC';
@@ -45,6 +57,7 @@ function tokenForMethod(pm: string): string {
  * can fetch the code. Any token/chain Bitrefill returns without an in-wallet rail is paid manually to a deposit address.
  */
 export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCallId: string; output: BitrefillPendingPayment; onReport?: (result: Record<string, unknown>) => void }) {
+  const call = useApiClient();
   const { getEvmWallet, getSolanaProvider, solanaAddress } = useAuth();
   const { reportToolResult } = useChatSheet();
   // Solana invoices can be paid from Bluvfi's wallet or the wallet the user connected (their choice, shown below).
@@ -56,6 +69,10 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
 
   const pm = output.paymentMethod ?? 'usdc_base';
   const currency = output.paymentCurrency || tokenForMethod(pm);
+  // Arc and Tempo (through bluvfi's swap service): the invoice and route are made when the person taps Pay, then the Bluvfi wallet signs them.
+  const isRoute = pm === 'arc' || pm === 'tempo';
+  const routeMeta = SWAP_CHAIN_META[pm === 'tempo' ? 'tempo' : 'arc'];
+  const [routeStage, setRouteStage] = useState<string | null>(null);
 
   // In chat the result goes back to the assistant; on the product page the page itself listens (onReport).
   const report = (result: Record<string, unknown>) =>
@@ -67,10 +84,53 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const payRoute = async () => {
+    if (!output.arcCheckout) throw new Error('Missing checkout details. Ask me to start the purchase again.');
+    const wallet = getEvmWallet();
+    const chain = pm === 'tempo' ? 'tempo' : 'arc';
+    const purchase = await startChainPurchase(call, { ...output.arcCheckout, chain, refundAddress: wallet.address } as PurchaseRequestBody);
+    try {
+      await payRouteSwap({
+        chain,
+        payment: purchase.payment,
+        refundAddress: purchase.refundAddress,
+        reportUrl: `/api/bitrefill/chain-purchase/${encodeURIComponent(purchase.walletRequestId)}/transaction`,
+        wallet,
+        call,
+        onStage: (s) => setRouteStage(s === 'approving' ? `Approving ${routeMeta.symbol}…` : s === 'paying' ? `Paying ${purchase.amount} ${routeMeta.symbol}…` : 'Confirming…'),
+      });
+    } catch (err) {
+      throw new Error(friendlyEvmError(err, routeMeta.label));
+    } finally {
+      setRouteStage(null);
+    }
+    setState('done');
+    void successAd.show();
+    report({
+      paid: true,
+      invoiceId: purchase.invoiceId,
+      paidWith: `${purchase.amount} ${routeMeta.symbol} on ${routeMeta.label}`,
+      isTopup: output.isTopup,
+      tip: `Paid ${purchase.amount} ${routeMeta.symbol} on ${routeMeta.label} from the user's Bluvfi wallet (it is converted and delivered to Bitrefill, usually within a minute or two). Call poll_bitrefill_order(invoiceId="${purchase.invoiceId}", isTopup=${!!output.isTopup}) now and keep polling until it is complete. Never say swap or bridge.`,
+    });
+  };
+
   const handlePay = async () => {
     setState('paying');
     setErrMsg(null);
     successAd.prepare();
+
+    if (isRoute) {
+      try {
+        await payRoute();
+      } catch (err) {
+        const friendly = (err as Error)?.message || 'The payment didn’t go through.';
+        setErrMsg(friendly);
+        setState('error');
+        report({ paid: false, error: friendly });
+      }
+      return;
+    }
 
     // Methods without an in-wallet rail are paid manually: show the exact deposit address to send to.
     if (isManualMethod(pm)) {
@@ -132,9 +192,12 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
     const label = output.paymentCurrency || tokenForMethod(pm);
     return (
       <View style={[styles.card, isXrp ? styles.sageCard : styles.warnCard]}>
-        <Text style={[styles.title, { color: isXrp ? Colors.sageLight : Colors.amber }]}>
-          {isXrp ? '◎ Send XRP to pay' : `🟡 Send manually — ${network} ${label}`}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <RoundLogo spec={isXrp ? tokenLogo('XRP') : (chainLogoByName(network) ?? tokenLogo(label))} size={20} />
+          <Text style={[styles.title, { color: isXrp ? Colors.sageLight : Colors.amber, flexShrink: 1 }]}>
+            {isXrp ? 'Send XRP to pay' : `Send manually — ${network} ${label}`}
+          </Text>
+        </View>
         <Text style={styles.sub}>
           Send exactly <Text style={styles.strong}>{output.paymentAmount} {label}</Text>{' '}
           {isXrp ? 'to this XRPL address. The amount includes the address activation reserve.' : `to the address below on the ${network} network.`}
@@ -191,11 +254,10 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
         {output.expiresInMinutes ? <Text style={styles.tiny}>Expires in {output.expiresInMinutes}m</Text> : null}
       </View>
       <View style={styles.amountRow}>
-        <Text style={styles.sub}>Amount</Text>
-        <Text style={styles.amount}>
-          {output.paymentAmount} {currency}
-        </Text>
+        <Text style={styles.sub}>{isRoute ? 'Pay with' : 'Amount'}</Text>
+        <Text style={styles.amount}>{isRoute ? `${routeMeta.symbol} on ${routeMeta.label}` : `${output.paymentAmount} ${currency}`}</Text>
       </View>
+      {isRoute ? <Text style={styles.tiny}>{routeStage ?? `Priced live when you tap Pay (a little above the item price to cover conversion). ${routeMeta.howToPay}`}</Text> : null}
       {pm.includes('solana') ? <PayFromPicker needed={Number(output.paymentAmount)} /> : null}
       {errMsg ? <Text style={styles.error}>{errMsg}</Text> : null}
       <View style={styles.actions}>
@@ -206,7 +268,7 @@ export function BitrefillPaymentCard({ toolCallId, output, onReport }: { toolCal
         </View>
         <View style={{ flex: 1 }}>
           <Button variant="secondary" fullWidth onPress={handlePay} loading={state === 'paying'}>
-            {`Pay ${output.paymentAmount} ${currency}`}
+            {isRoute ? `Pay with ${routeMeta.symbol} on ${routeMeta.label}` : `Pay ${output.paymentAmount} ${currency}`}
           </Button>
         </View>
       </View>

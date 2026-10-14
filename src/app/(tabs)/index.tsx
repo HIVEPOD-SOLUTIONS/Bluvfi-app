@@ -45,6 +45,7 @@ import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
 import { getTimeBasedGreeting } from '@/lib/greeting';
+import { useArcUsdcBalance } from '@/hooks/use-arc-balance';
 import { useBalances } from '@/hooks/use-balances';
 import { useXrpBalance, useXrplWallet } from '@/hooks/use-xrpl';
 import { useApiQuery } from '@/hooks/use-api';
@@ -88,6 +89,8 @@ export default function HomeScreen() {
   const { wallet: signInWallet } = useConnectedWallet();
   const { isPremium, setIsPremium } = usePremium();
   const { data: balances, isLoading: balancesLoading } = useBalances(evmAddress, solanaAddress);
+  // USDC on Arc is read on its own (Arc's gas token is USDC too), like the website's wallet list.
+  const { arcUsdc } = useArcUsdcBalance();
   const xrpl = useXrplWallet();
   const xrp = useXrpBalance(!!xrpl.address);
 
@@ -225,6 +228,10 @@ export default function HomeScreen() {
                 <Text style={[styles.walletAmount, balanceIsLow && { color: Colors.amber }]}>
                   {balancesLoading ? '…' : usd(evmTotal)}
                 </Text>
+              </View>
+              <View style={styles.walletLine}>
+                <Text style={styles.walletChain}>Arc</Text>
+                <Text style={styles.walletAmount}>{arcUsdc === null ? '…' : usd(arcUsdc)}</Text>
               </View>
               {solanaAddress && (
                 <View style={styles.walletLine}>

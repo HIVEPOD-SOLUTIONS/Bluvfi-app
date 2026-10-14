@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { ColorValue } from 'react-native';
+import { StyleSheet, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, Fonts, BottomNavHeight } from '@/constants/theme';
@@ -54,20 +54,21 @@ function ProfileIcon({ color }: { color: string }) {
 const SCREEN_OPTIONS = {
   headerShown: false,
   tabBarActiveTintColor: Colors.blueBright,
-  tabBarInactiveTintColor: Colors.tx0,
-  tabBarActiveBackgroundColor: 'rgba(123, 139, 255, 0.16)',
-  // A rounded highlight behind the open tab, so the menu reads at a glance.
-  tabBarItemStyle: { borderRadius: 16, marginHorizontal: 6, marginVertical: 8, paddingVertical: 2 },
+  // Light enough to read on the dark bar; the open tab is told apart by its colour alone, like a plain system bar (no pill or box).
+  tabBarInactiveTintColor: '#C9C8BD',
+  tabBarItemStyle: { paddingTop: 8, paddingBottom: 6 },
   tabBarStyle: {
     backgroundColor: Colors.bg1,
     borderTopColor: Colors.border,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     height: BottomNavHeight,
+    elevation: 0,
   },
+  tabBarIconStyle: { marginBottom: 2 },
   tabBarLabelStyle: {
     fontFamily: Fonts.sansSemiBold,
-    fontSize: 12,
-    letterSpacing: 0.2,
+    fontSize: 11.5,
+    letterSpacing: 0.1,
   },
 } as const;
 

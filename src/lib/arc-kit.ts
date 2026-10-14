@@ -28,10 +28,22 @@ export const BRIDGE_SOURCE_OPTIONS = [
   { value: 'Polygon', label: 'Polygon', icon: '🟣', disabled: false },
   { value: 'Linea', label: 'Linea', icon: '⬜', disabled: false },
   { value: 'Base', label: 'Base', icon: '🔷', disabled: false },
+  { value: 'Arc', label: 'Arc', icon: '🟣', disabled: false },
   { value: 'Solana', label: 'Solana', icon: '◎', disabled: false },
 ] as const;
 
 export type BridgeSourceChain = (typeof BRIDGE_SOURCE_OPTIONS)[number]['value'];
+
+/**
+ * Where the Bridge tab can land USDC in the Bluvfi wallet. Arc mainnet (Circle's USDC-gas L1) uses Circle's Forwarding Service, so Circle's relayer
+ * mints on Arc and nothing needs signing or paying on the Arc side (no Arc gas is needed to receive).
+ */
+export const BRIDGE_DESTINATIONS = [
+  { value: 'Base', label: 'Base', icon: '🔷', useForwarder: false },
+  { value: 'Arc', label: 'Arc', icon: '🟣', useForwarder: true },
+] as const;
+
+export type BridgeDestinationChain = (typeof BRIDGE_DESTINATIONS)[number]['value'];
 
 let kitPromise: Promise<import('@circle-fin/app-kit').AppKit> | null = null;
 

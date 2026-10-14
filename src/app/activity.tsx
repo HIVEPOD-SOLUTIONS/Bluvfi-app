@@ -181,6 +181,14 @@ function KindIcon({ kind }: { kind: ActivityKind }) {
           <Path d="M9 8V6a3 3 0 016 0v2" {...stroke} />
         </Svg>
       );
+    case 'spark':
+    case 'prize':
+      return (
+        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={12} r={4} {...stroke} />
+          <Path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" {...stroke} />
+        </Svg>
+      );
     case 'provider':
     case 'earned':
       return (

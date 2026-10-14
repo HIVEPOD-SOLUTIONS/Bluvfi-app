@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { Button } from '@/components/ui/Button';
+import { ChainTopUpPanel } from '@/components/dashboard/ChainTopUpPanel';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
+import { MoreChainsLink } from '@/components/dashboard/PaymentMethodPicker';
 import { useApiClient } from '@/hooks/use-api';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
@@ -20,6 +22,7 @@ import {
   type DomaListingFulfillment,
 } from '@/lib/doma-chain';
 import { evmPublicClient, friendlyEvmError, payEvm, waitForEvmTx } from '@/lib/payments/evm-pay';
+import { isSwapChain, type SwapChain } from '@/lib/swap-chains';
 
 /**
  * Buy card for the assistant's doma_buy_listing tool — fills a Doma marketplace listing (a Seaport 1.6
@@ -45,6 +48,9 @@ type Output = {
   };
   payment: { token: Hex | 'native'; amount: string };
   buyer: string;
+  /** Base listings only: top up the Base wallet from Arc / Tempo / Robinhood / Zcash / Hyperliquid first. */
+  fundFrom?: SwapChain;
+  refundAddress?: string;
   paid?: boolean;
   txHash?: string;
   error?: string;
@@ -65,6 +71,22 @@ export function DomaListingCard({ toolCallId, output }: { toolCallId: string; ou
   const price = `${listing.priceDisplay.toLocaleString(undefined, { maximumFractionDigits: listing.decimals > 6 ? 6 : 2 })} ${listing.symbol}`;
   const expired = listing.expiresAt ? new Date(listing.expiresAt).getTime() < Date.now() : false;
   const native = output.payment.token === 'native';
+
+  // Base listings priced in ETH or USDC can be funded from another chain.
+  const topUpToken = listing.chainId === 8453 ? (native ? 'eth' : /usdc/i.test(listing.symbol) ? 'usdc' : null) : null;
+  const topUpAmount = topUpToken ? (Number(BigInt(output.payment.amount)) / 10 ** listing.decimals).toFixed(topUpToken === 'eth' ? 6 : 2) : '0';
+  const [showTopUp, setShowTopUp] = useState(!!topUpToken && isSwapChain(output.fundFrom));
+  const [ethUsd, setEthUsd] = useState<number | null>(null);
+  useEffect(() => {
+    if (topUpToken !== 'eth' || !showTopUp || ethUsd !== null) return;
+    call<{ prices?: { symbol: string; priceUsd: number }[] }>('/api/prices')
+      .then((d) => {
+        const p = d?.prices?.find((x) => x.symbol === 'ETH')?.priceUsd;
+        if (p) setEthUsd(p);
+      })
+      .catch(() => {});
+  }, [topUpToken, showTopUp, ethUsd, call]);
+  const topUpUsd = topUpToken === 'usdc' ? Number(topUpAmount) : ethUsd ? Number(topUpAmount) * ethUsd : null;
 
   const report = (result: Record<string, unknown>) =>
     reportToolResult({ tool: 'doma_buy_listing', toolCallId, output: { ...output, ...result } });
@@ -152,6 +174,19 @@ export function DomaListingCard({ toolCallId, output }: { toolCallId: string; ou
       await waitForEvmTx(chain.id, hash);
       setTxHash(hash);
       setState('done');
+      // History, as the website records it.
+      call('/api/payments', {
+        method: 'POST',
+        body: {
+          type: 'domain',
+          referenceId: listing.externalId,
+          description: `Doma marketplace: bought ${listing.name} for ${price} on ${listing.chainName}`,
+          amountUsdc: /usd/i.test(listing.symbol) ? String(listing.priceDisplay) : '0',
+          status: 'completed',
+          txHash: hash,
+          chain: chain.id === 8453 ? 'evm' : 'doma',
+        },
+      }).catch(() => {});
       report({ paid: true, txHash: hash });
     } catch (e) {
       const raw = (e as Error)?.message ?? 'Purchase failed.';
@@ -191,6 +226,29 @@ export function DomaListingCard({ toolCallId, output }: { toolCallId: string; ou
               Paid from your wallet on {listing.chainName}
               {native ? '' : ' (approve, then buy)'}. The domain is sent to your wallet.
             </Text>
+            {topUpToken && showTopUp ? (
+              topUpUsd === null ? (
+                <Text style={styles.tiny}>Getting the ETH price…</Text>
+              ) : (
+                <ChainTopUpPanel
+                  inChat
+                  token={topUpToken}
+                  amount={topUpAmount}
+                  amountUsd={topUpUsd}
+                  purpose="doma"
+                  reference={`${listing.name} (${price})`}
+                  initialChain={isSwapChain(output.fundFrom) ? output.fundFrom : undefined}
+                  initialRefundAddress={output.refundAddress}
+                  onFunded={() => {
+                    setShowTopUp(false);
+                    void buy();
+                  }}
+                />
+              )
+            ) : null}
+            {topUpToken && !showTopUp ? (
+              <MoreChainsLink onPress={() => setShowTopUp(true)} textStyle={styles.topUpLink} />
+            ) : null}
             <View style={styles.actions}>
               <View style={{ flex: 1 }}>
                 <Button
@@ -205,11 +263,13 @@ export function DomaListingCard({ toolCallId, output }: { toolCallId: string; ou
                   Cancel
                 </Button>
               </View>
-              <View style={{ flex: 1 }}>
-                <Button variant="secondary" fullWidth onPress={buy}>
-                  {`Buy for ${price}`}
-                </Button>
-              </View>
+              {!(topUpToken && showTopUp) ? (
+                <View style={{ flex: 1 }}>
+                  <Button variant="secondary" fullWidth onPress={buy}>
+                    {`Buy for ${price}`}
+                  </Button>
+                </View>
+              ) : null}
             </View>
           </>
         ))}
@@ -244,6 +304,7 @@ export function DomaListingCard({ toolCallId, output }: { toolCallId: string; ou
 }
 
 const styles = StyleSheet.create({
+  topUpLink: { ...Type.small, color: Colors.sage, textDecorationLine: 'underline', textAlign: 'center' },
   card: {
     backgroundColor: Colors.bg1,
     borderWidth: 1,

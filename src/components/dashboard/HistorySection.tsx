@@ -2,6 +2,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { normalizeStatus, useHistory, useWeeklyInsight } from '@/hooks/use-history';
 import type { Payment } from '@/lib/api-types';
+import { chainLogoByName } from '@/lib/payment-logos';
+import { RoundLogo } from './PaymentMethodPicker';
 
 /**
  * History, matching the web: a Total Transacted card, the AI weekly insight, and every payment with its live
@@ -11,10 +13,11 @@ import type { Payment } from '@/lib/api-types';
 const TYPE_META: Record<string, { icon: string; label: string; network?: string }> = {
   bill: { icon: '🧾', label: 'Bill / Gift Card' },
   investment: { icon: '📈', label: 'Investment' },
+  domain: { icon: '🌐', label: 'Domain' },
   transfer: { icon: '↗️', label: 'Transfer' },
   bridge: { icon: '🌉', label: 'Bridge' },
   nanopay: { icon: '⚡', label: 'Circle Nanopay', network: 'Base' },
-  solpay: { icon: '◎', label: 'Solana Nanopay', network: 'Solana' },
+  solpay: { icon: '⚡', label: 'Solana Nanopay', network: 'Solana' },
   x402: { icon: '🔑', label: 'x402 Payment' },
   deposit: { icon: '⬇️', label: 'Gateway Deposit' },
   withdrawal: { icon: '⬆️', label: 'Gateway Withdrawal' },
@@ -32,6 +35,7 @@ const STATUS: Record<ReturnType<typeof normalizeStatus>, { label: string; color:
 const CATEGORY_LABELS: Record<string, string> = {
   bill: 'digital products',
   investment: 'investments',
+  domain: 'domains',
   bridge: 'cross-chain bridges',
   transfer: 'transfers',
   nanopay: 'nanopayments',
@@ -44,9 +48,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 function networkLabel(type: string, chain?: string | null) {
-  if (chain === 'solana') return '◎ Solana';
-  if (chain === 'evm') return '🔷 Base';
-  if (chain === 'xrpl') return '🌐 XRP';
+  // Plain names: the chain's own logo is drawn on the row's icon (see PaymentRow), not an emoji in the text.
+  if (chain === 'solana') return 'Solana';
+  if (chain === 'evm') return 'Base';
+  if (chain === 'xrpl') return 'XRP';
+  if (chain === 'arc') return 'Arc';
+  if (chain === 'zcash') return 'Zcash';
+  if (chain === 'hyperliquid') return 'Hyperliquid';
+  if (chain === 'robinhood') return 'Robinhood Chain';
+  if (chain === 'tempo') return 'Tempo';
+  if (chain === 'doma') return 'Doma';
+  if (chain === 'backpack') return 'Backpack';
   return TYPE_META[type]?.network ?? '';
 }
 
@@ -114,6 +126,7 @@ function PaymentRow({ payment, onAsk }: { payment: Payment; onAsk: (prompt: stri
   const status = normalizeStatus(payment.status);
   const st = STATUS[status];
   const net = networkLabel(payment.type, payment.chain);
+  const netLogo = net ? chainLogoByName(net) : null;
   const amt = parseFloat(payment.amountUsdc ?? '0');
   const waiting = status === 'pending' || status === 'processing';
 
@@ -128,6 +141,11 @@ function PaymentRow({ payment, onAsk }: { payment: Payment; onAsk: (prompt: stri
     <Pressable onPress={ask} style={styles.row} accessibilityRole="button" accessibilityLabel={`${payment.description}, ${st.label}`}>
       <View style={styles.icon}>
         <Text style={{ fontSize: 20 }}>{meta.icon}</Text>
+        {netLogo ? (
+          <View style={styles.netBadge}>
+            <RoundLogo spec={netLogo} size={14} />
+          </View>
+        ) : null}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -225,6 +243,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   icon: { width: 40, height: 40, borderRadius: Radii.lg, backgroundColor: 'rgba(242,240,232,0.06)', alignItems: 'center', justifyContent: 'center' },
+  netBadge: { position: 'absolute', right: -4, bottom: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.bg0, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { ...Type.h3, color: Colors.tx0 },
   sub: { ...Type.small, color: Colors.tx1 },
   amount: { ...Type.body, fontFamily: Fonts.sansSemiBold, color: Colors.tx0 },

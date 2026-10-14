@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'r
 import { createPublicClient, encodeFunctionData, erc20Abi, http, parseAbi, type Hex } from 'viem';
 import { Button } from '@/components/ui/Button';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
+import { useApiClient } from '@/hooks/use-api';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
 import { DOMA_BRIDGE_URL, domaChain } from '@/lib/doma-chain';
@@ -33,6 +34,7 @@ const PAY_ABI = parseAbi([
 ]);
 
 export function DomaPaymentCard({ toolCallId, output }: { toolCallId: string; output: Output }) {
+  const call = useApiClient();
   const { getEvmWallet } = useAuth();
   const { reportToolResult } = useChatSheet();
   const [state, setState] = useState<State>(output.paid === true ? 'done' : output.paid === false ? 'error' : 'idle');
@@ -114,6 +116,19 @@ export function DomaPaymentCard({ toolCallId, output }: { toolCallId: string; ou
       await waitForEvmTx(domaChain.id, hash);
       setTxHash(hash);
       setState('done');
+      // History, as the website records it.
+      call('/api/payments', {
+        method: 'POST',
+        body: {
+          type: 'domain',
+          referenceId: output.order.orderId,
+          description: `Doma registration: ${domains || 'domain'} (${display})`,
+          amountUsdc: native ? '0' : String(Number(amountAtomic) / 1e6),
+          status: 'completed',
+          txHash: hash,
+          chain: 'doma',
+        },
+      }).catch(() => {});
       report({ paid: true, txHash: hash });
     } catch (e) {
       let m = friendlyEvmError(e, 'the Doma chain');

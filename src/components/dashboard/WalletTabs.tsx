@@ -7,8 +7,13 @@ import { Logo } from '@/components/ui/Logo';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiClient } from '@/hooks/use-api';
 import { useUnifiedBalance } from '@/hooks/use-unified-balance';
-import { AGENT_CHAIN, BRIDGE_SOURCE_OPTIONS, createEvmAdapter, getArcKit, type BridgeSourceChain } from '@/lib/arc-kit';
+import { useArcUsdcBalance } from '@/hooks/use-arc-balance';
+import { AGENT_CHAIN, BRIDGE_DESTINATIONS, BRIDGE_SOURCE_OPTIONS, createEvmAdapter, getArcKit, type BridgeDestinationChain, type BridgeSourceChain } from '@/lib/arc-kit';
+import { ARC_USDC, arcAddressUrl, arcChain, arcTxUrl } from '@/lib/arc-chain';
 import { useAuth } from '@/lib/auth-context';
+import { chainLogoByName } from '@/lib/payment-logos';
+import { friendlyEvmError, payEvmTransfer, waitForEvmTx } from '@/lib/payments/evm-pay';
+import { ChainLabel, RoundLogo } from './PaymentMethodPicker';
 
 // ─── Shared pieces ────────────────────────────────────────────────────────────
 
@@ -214,9 +219,13 @@ export function UnifiedBalanceTab({ onBridge }: { onBridge: () => void }) {
 
       {chains.map((c) => (
         <View key={c.chain} style={[styles.chainRow, !c.hasFunds && { opacity: 0.45 }]}>
-          <View style={[styles.chainIcon, { backgroundColor: `${c.color}33` }]}>
-            <Text style={{ fontSize: 14 }}>{c.icon}</Text>
-          </View>
+          {chainLogoByName(c.label) ? (
+            <RoundLogo spec={chainLogoByName(c.label)!} size={32} />
+          ) : (
+            <View style={[styles.chainIcon, { backgroundColor: `${c.color}33` }]}>
+              <Text style={{ fontSize: 14 }}>{c.icon}</Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.chainName}>{c.label}</Text>
             {c.pendingBalance && <Text style={styles.tiny}>+${c.pendingBalance} pending</Text>}
@@ -349,16 +358,20 @@ export function SendTab({ agentAddress }: { agentAddress: string }) {
 
 // ─── Bridge ───────────────────────────────────────────────────────────────────
 
-export function BridgeTab({ agentAddress }: { agentAddress: string }) {
+export function BridgeTab({ agentAddress, initialDestination }: { agentAddress: string; initialDestination?: BridgeDestinationChain }) {
   const call = useApiClient();
   const { getEvmProvider } = useAuth();
   const wallet = useFundingWallet();
+  const [destination, setDestination] = useState<BridgeDestinationChain>(initialDestination ?? BRIDGE_DESTINATIONS[0].value);
   const [sourceChain, setSourceChain] = useState<BridgeSourceChain>('Ethereum');
   const [amount, setAmount] = useState('');
   const [tx, setTx] = useState<TxState>({ status: 'idle' });
 
   const selectedSource = BRIDGE_SOURCE_OPTIONS.find((o) => o.value === sourceChain)!;
-  const sameChain = sourceChain === AGENT_CHAIN;
+  const selectedDest = BRIDGE_DESTINATIONS.find((d) => d.value === destination)!;
+  // A chain can't be bridged to itself: choosing a destination takes it off the list of sources.
+  const sourceOptions = BRIDGE_SOURCE_OPTIONS.filter((o) => o.value !== destination);
+  const sameChain = sourceChain === destination;
   // Bridging out of Solana needs Circle's Solana adapter, which the app doesn't wire up yet.
   const unsupportedSource = sourceChain === 'Solana';
   const blocked = sameChain || unsupportedSource;
@@ -372,7 +385,8 @@ export function BridgeTab({ agentAddress }: { agentAddress: string }) {
       setTx({ status: 'pending', label: 'Bridging… this can take a few minutes' });
       const result = await arcKit.bridge({
         from: { adapter, chain: sourceChain as never },
-        to: { adapter, chain: AGENT_CHAIN as never, recipientAddress: agentAddress },
+        // Arc: Circle's Forwarding Service mints on Arc, so no Arc gas is needed to receive.
+        to: selectedDest.useForwarder ? ({ chain: destination, recipientAddress: agentAddress, useForwarder: true } as never) : { adapter, chain: AGENT_CHAIN as never, recipientAddress: agentAddress },
         amount,
         token: 'USDC',
       });
@@ -388,11 +402,11 @@ export function BridgeTab({ agentAddress }: { agentAddress: string }) {
         body: {
           type: 'bridge',
           referenceId: hash,
-          description: `Arc bridge: ${amount} USDC from ${selectedSource.label} → Base`,
+          description: `Bridge: ${amount} USDC from ${selectedSource.label} → ${selectedDest.label}`,
           amountUsdc: amount,
           status: 'completed',
           txHash: hash,
-          chain: 'evm',
+          chain: selectedDest.label === 'Arc' || selectedSource.label === 'Arc' ? 'arc' : 'evm',
         },
       }).catch(() => {});
     } catch (err) {
@@ -410,20 +424,18 @@ export function BridgeTab({ agentAddress }: { agentAddress: string }) {
 
   return (
     <View style={styles.stack}>
-      <InfoBox>Bridge moves funds from another network into your wallet on Base automatically. No manual steps needed.</InfoBox>
+      <InfoBox>{`Bridge moves USDC from another network into your wallet on ${selectedDest.label} automatically. No manual steps needed.${destination === 'Arc' ? ' On Arc, USDC is also the gas token, so you only ever need USDC there.' : ''}`}</InfoBox>
 
       <View>
         <Text style={styles.fieldLabel}>From network</Text>
         <View style={styles.chips}>
-          {BRIDGE_SOURCE_OPTIONS.map((opt) => (
+          {sourceOptions.map((opt) => (
             <Pressable
               key={opt.value}
               onPress={() => setSourceChain(opt.value)}
               style={[styles.chip, sourceChain === opt.value && styles.chipActive]}
             >
-              <Text style={[styles.chipText, sourceChain === opt.value && styles.chipTextActive]}>
-                {opt.icon} {opt.label}
-              </Text>
+              <ChainLabel name={opt.label} icon={opt.icon} textStyle={[styles.chipText, sourceChain === opt.value && styles.chipTextActive]} />
             </Pressable>
           ))}
         </View>
@@ -432,7 +444,20 @@ export function BridgeTab({ agentAddress }: { agentAddress: string }) {
       <View style={styles.destination}>
         <View>
           <Text style={styles.tiny}>To network</Text>
-          <Text style={styles.walletName}>🔷 Base</Text>
+          <View style={[styles.chips, { marginTop: 4 }]}>
+            {BRIDGE_DESTINATIONS.map((d) => (
+              <Pressable
+                key={d.value}
+                onPress={() => {
+                  setDestination(d.value);
+                  if (sourceChain === d.value) setSourceChain(BRIDGE_SOURCE_OPTIONS.find((o) => o.value !== d.value)!.value);
+                }}
+                style={[styles.chip, destination === d.value && styles.chipActive]}
+              >
+                <ChainLabel name={d.label} icon={d.icon} textStyle={[styles.chipText, destination === d.value && styles.chipTextActive]} />
+              </Pressable>
+            ))}
+          </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={styles.tiny}>Recipient</Text>
@@ -453,7 +478,7 @@ export function BridgeTab({ agentAddress }: { agentAddress: string }) {
       {wallet.connected && (
         <>
           <AmountField value={amount} onChange={setAmount} placeholder="50.00" />
-          {sameChain && <Text style={styles.error}>Pick a source network other than Base.</Text>}
+          {sameChain && <Text style={styles.error}>{`Pick a source network other than ${selectedDest.label}.`}</Text>}
           {unsupportedSource && (
             <Text style={styles.error}>Bridging from Solana isn't available in the app yet. Pick an EVM network.</Text>
           )}
@@ -465,11 +490,111 @@ export function BridgeTab({ agentAddress }: { agentAddress: string }) {
               disabled={!amount || Number(amount) <= 0 || blocked}
               fullWidth
             >
-              {`Bridge $${amount || '0.00'} → Base`}
+              {`Bridge $${amount || '0.00'} → ${selectedDest.label}`}
             </Button>
           )}
         </>
       )}
+    </View>
+  );
+}
+
+// ─── Arc ──────────────────────────────────────────────────────────────
+
+/**
+ * Arc mainnet in one place: the USDC on Arc, sending it from the Bluvfi wallet (USDC is also Arc's gas token, so nothing else is needed), and a
+ * shortcut to bridge USDC in. Sends use the shared payment layers. Mirrors the website's Arc tab.
+ */
+export function ArcTab({ onBridgeToArc }: { onBridgeToArc: () => void }) {
+  const call = useApiClient();
+  const { getEvmWallet } = useAuth();
+  const { arcUsdc, address, refresh } = useArcUsdcBalance(15_000);
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [tx, setTx] = useState<TxState>({ status: 'idle' });
+  const amountNum = Number(amount);
+  const validRecipient = /^0x[0-9a-fA-F]{40}$/.test(recipient);
+  const tooMuch = arcUsdc !== null && amountNum > arcUsdc;
+  const canSend = validRecipient && amountNum > 0 && !tooMuch && tx.status !== 'pending';
+
+  const send = async () => {
+    if (!canSend) return;
+    setTx({ status: 'pending', label: 'Confirm in your wallet…' });
+    try {
+      const { hash } = await payEvmTransfer({
+        chainId: arcChain.id,
+        token: ARC_USDC,
+        symbol: 'USDC',
+        decimals: 6,
+        recipient: recipient as `0x${string}`,
+        amount,
+        wallet: getEvmWallet(),
+        label: 'arc-tab',
+      });
+      setTx({ status: 'pending', label: 'Confirming on Arc…' });
+      await waitForEvmTx(arcChain.id, hash);
+      setTx({ status: 'success', message: 'Sent!', explorerUrl: arcTxUrl(hash) });
+      void refresh();
+      call('/api/payments', {
+        method: 'POST',
+        body: {
+          type: 'transfer',
+          referenceId: hash,
+          description: `Sent ${amount} USDC on Arc to ${recipient.slice(0, 6)}…${recipient.slice(-4)}`,
+          amountUsdc: amount,
+          status: 'completed',
+          txHash: hash,
+          chain: 'arc',
+        },
+      }).catch(() => {});
+    } catch (err) {
+      setTx({ status: 'error', message: friendlyEvmError(err, 'Arc') });
+    }
+  };
+
+  return (
+    <View style={styles.stack}>
+      <View style={styles.card}>
+        <Text style={styles.fieldLabel}>Your USDC on Arc</Text>
+        <Text style={styles.total}>{arcUsdc === null ? '…' : arcUsdc.toFixed(2)}</Text>
+        <Text style={styles.hint}>Arc is Circle’s stablecoin network. USDC pays for both the payment and the network cost, so USDC is all you need here.</Text>
+        {address ? (
+          <Pressable onPress={() => Linking.openURL(arcAddressUrl(address)).catch(() => {})} hitSlop={8}>
+            <Text style={styles.link}>View wallet on Arc explorer ↗</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <Button variant="outline" fullWidth onPress={onBridgeToArc}>
+        ⇌ Bring USDC to Arc (bridge)
+      </Button>
+
+      <View style={styles.stack}>
+        <Text style={styles.fieldLabel}>Send USDC on Arc</Text>
+        <View style={styles.amountField}>
+          <BottomSheetTextInput
+            value={recipient}
+            onChangeText={(v) => setRecipient(v.trim())}
+            placeholder="Recipient address (0x…)"
+            placeholderTextColor={Colors.tx2}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.amountInput}
+          />
+        </View>
+        <AmountField value={amount} onChange={setAmount} placeholder="Amount (USDC)" />
+        <Pressable onPress={() => arcUsdc !== null && setAmount((Math.floor(arcUsdc * 100) / 100).toFixed(2))} hitSlop={8} style={{ alignSelf: 'flex-end' }}>
+          <Text style={styles.link}>Max</Text>
+        </Pressable>
+        {recipient.length > 0 && !validRecipient ? <Text style={styles.error}>That isn’t a valid address.</Text> : null}
+        {tooMuch ? <Text style={styles.error}>More than your Arc balance.</Text> : null}
+        <TxResult state={tx} onReset={() => setTx({ status: 'idle' })} />
+        {tx.status !== 'success' && (
+          <Button onPress={send} loading={tx.status === 'pending'} disabled={!canSend} fullWidth>
+            {`Send ${amount || '0.00'} USDC on Arc`}
+          </Button>
+        )}
+      </View>
     </View>
   );
 }

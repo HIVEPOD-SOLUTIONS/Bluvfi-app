@@ -329,6 +329,22 @@ export function xrpRequestBody(i: InvoiceRequestInput): Record<string, unknown> 
   return rest;
 }
 
+/**
+ * The body for POST /api/bitrefill/chain-purchase (Zcash, Hyperliquid, Arc, Tempo, Robinhood Chain): the invoice request without a payment
+ * method, plus the chain and where a failed payment is refunded. A gift is sent through the recipient's name and email (Bitrefill emails it to
+ * them from Bluvfi); this route has no personal message.
+ */
+export function chainRequestBody(i: InvoiceRequestInput, refundAddress: string): Record<string, unknown> {
+  const { paymentMethod: _method, gift: _gift, recipientEmail, ...rest } = invoiceRequestBody({ ...i, gift: null });
+  return {
+    ...rest,
+    chain: i.method,
+    refundAddress,
+    recipientEmail: i.gift ? i.gift.recipientEmail.trim() : recipientEmail,
+    ...(i.gift ? { recipientName: i.gift.recipientName.trim() } : {}),
+  };
+}
+
 export interface DepositDetails {
   address: string;
   /** The exact amount in the coin, or null when Bitrefill gave none (its checkout page shows it). */
