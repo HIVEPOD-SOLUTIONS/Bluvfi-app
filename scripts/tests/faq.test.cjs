@@ -29,7 +29,7 @@ const def = text(sections);
 check("defaults say what the server says (1 Shar per $1 from $10, 10% referral, 1,000 Shar = 0.9 SKR each, 80% owner, $5 minimum, $1 top-up)", ["$10 or more", "1 Shar per $1", "10%", "1,000 Shar", "0.9 SKR", "80%", "$5.00", "$1.00", "up to 3 accounts"].every((x) => def.includes(x)));
 
 // links
-const ROUTES = new Set(["/shar", "/network", "/activity", "/profile", "/creator"]);
+const ROUTES = new Set(["/shar", "/network", "/activity", "/profile", "/creator", "/spark"]);
 const links = items.flatMap((i) => i.links ?? []);
 check("every in-app link goes to a screen that exists", links.filter((l) => l.to).every((l) => ROUTES.has(l.to)) && links.filter((l) => l.to).every((l) => fs.existsSync(path.join(__dirname, "../../src/app", l.to === "/profile" ? "(tabs)/profile.tsx" : fs.existsSync(path.join(__dirname, "../../src/app", l.to.slice(1) + ".tsx")) ? l.to.slice(1) + ".tsx" : `(tabs)/${l.to.slice(1)}.tsx`))));
 check("every assistant link carries a question to ask", links.filter((l) => l.ask).every((l) => l.ask.length > 8));

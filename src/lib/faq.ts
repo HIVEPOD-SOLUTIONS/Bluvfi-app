@@ -34,7 +34,7 @@ export const DEFAULT_FACTS: FaqFacts = {
 };
 
 /** A link under an answer: either a screen in the app, or a question for the assistant. */
-export type FaqLink = { label: string; to: '/shar' | '/network' | '/activity' | '/profile' | '/creator' } | { label: string; ask: string };
+export type FaqLink = { label: string; to: '/shar' | '/network' | '/activity' | '/profile' | '/creator' | '/spark' } | { label: string; ask: string };
 
 export interface FaqItem {
   id: string;
@@ -112,6 +112,17 @@ export function buildFaq(f: FaqFacts = DEFAULT_FACTS): FaqSection[] {
           id: 'shar-earn',
           q: 'How do I earn Shar?',
           a: `Every purchase of $${f.minPurchaseUsd} or more earns ${f.perUsd} Shar per $1 you spend, once the payment completes. You also earn ${f.referralBonusPct}% of the Shar a friend earns from spending when they use your code, and ${f.providerUseShar} Shar each time someone uses a provider you added to the open network.`,
+        },
+        {
+          id: 'shar-spark',
+          q: 'What is the Daily Spark?',
+          a: 'Once a day, tap the Shar orb to collect a few Shar. Collect on days in a row to build a streak: longer streaks pay more, and every 7th day adds a bonus. Miss a day and the streak starts again. It resets at midnight UTC, and you can turn on a reminder so you never lose a streak. Everyone can collect it, not only creators.',
+          links: [{ label: 'Open Daily Spark', to: '/spark' }],
+        },
+        {
+          id: 'shar-seeker-boost',
+          q: 'Do Seeker owners get more?',
+          a: 'Yes. If you hold a Seeker Genesis Token in a Solana wallet linked to your account, your Daily Spark and its weekly bonus are boosted, and you get a Seeker Genesis badge. We check it on our server when you collect, so it can’t be switched on from the app. Sign in with the wallet that holds it for it to count.',
         },
         {
           id: 'shar-pending',

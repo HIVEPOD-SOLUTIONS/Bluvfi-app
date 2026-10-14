@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
@@ -38,6 +38,34 @@ export function MethodLogo({ method, size = 26 }: { method: PaymentMethod; size?
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** A coin's logo with its network's logo in the corner (USDC on Base). With no network, just the coin. */
+export function TokenChainLogo({ token, chain, size = 26 }: { token: LogoSpec; chain?: LogoSpec | null; size?: number }) {
+  const small = Math.round(size * 0.52);
+  return (
+    <View style={{ width: size, height: size }}>
+      <RoundLogo spec={token} size={size} />
+      {chain ? (
+        <View style={[styles.badge, { width: small + 3, height: small + 3, borderRadius: (small + 3) / 2 }]}>
+          <RoundLogo spec={chain} size={small} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** A choice chip with a logo: a coin, a network, a way to pay. */
+export function LogoChip({ logo, label, sub, selected, onPress }: { logo: ReactNode; label: string; sub?: string; selected?: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={sub ? `${label}, ${sub}` : label} style={[styles.chip, selected && styles.chipActive]}>
+      {logo}
+      <View>
+        <Text style={[styles.label, selected && { color: Colors.sage }]}>{label}</Text>
+        {sub ? <Text style={styles.sub}>{sub}</Text> : null}
+      </View>
+    </Pressable>
   );
 }
 

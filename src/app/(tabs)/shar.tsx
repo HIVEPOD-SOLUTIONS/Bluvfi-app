@@ -13,6 +13,9 @@ import { HowSharWorks } from '@/components/shar/HowSharWorks';
 import { SharOrb } from '@/components/shar/SharOrb';
 import { ConvertSkrSheet } from '@/components/shar/ConvertSkrSheet';
 import { SpendSkrCard } from '@/components/shar/SpendSkrCard';
+import { BadgeRow } from '@/components/shar/BadgeRow';
+import { SparkCard } from '@/components/shar/SparkCard';
+import { WeeklyBoard } from '@/components/shar/WeeklyBoard';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { SHAR_TIER_BLURB, SharColors } from '@/constants/shar';
 import { useShar, useSharLeaderboard, useUseReferralCode, type SharActivity, type SharSummary } from '@/hooks/use-shar';
@@ -26,17 +29,6 @@ const TIER_LADDER = [
 ] as const;
 
 const fmt = (n: number) => n.toLocaleString('en-US');
-
-/** "3d 4h" / "5h 12m" until an ISO time. */
-function timeLeft(iso: string): string {
-  const ms = new Date(iso).getTime() - Date.now();
-  if (!(ms > 0)) return 'soon';
-  const mins = Math.floor(ms / 60_000);
-  const d = Math.floor(mins / 1440);
-  const h = Math.floor((mins % 1440) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  return h > 0 ? `${h}h ${mins % 60}m` : `${Math.max(1, mins)}m`;
-}
 
 function BackIcon() {
   return (
@@ -121,7 +113,9 @@ function SharScreenContent() {
             <Ladder data={data} />
             <ClaimRow data={data} onClaim={() => setClaimOpen(true)} />
             <SpendSkrCard onConvert={() => setConvertOpen(true)} />
-            <Trial board={board.data} loading={board.isLoading} />
+            <SparkCard />
+            <WeeklyBoard />
+            <BadgeRow badges={data.badges} />
             <Companions data={data} />
             <NetworkCard data={data} />
             <Journey items={data.activity} minPurchase={data.rules.minPurchaseUsd} />
@@ -211,39 +205,6 @@ function ClaimRow({ data, onClaim }: { data: SharSummary; onClaim: () => void })
             ? `1 Shar = ${data.rules.skrPerShar} SKR, fixed when you claim.`
             : `You can claim from ${fmt(data.claim.minShar)} Shar.`}
       </Text>
-    </View>
-  );
-}
-
-function Trial({ board, loading }: { board: ReturnType<typeof useSharLeaderboard>['data']; loading: boolean }) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.rowBetween}>
-        <Text style={styles.cardTitle}>Weekly trial</Text>
-        {board ? <Text style={styles.mono}>Resets in {timeLeft(board.weekEndsAt)}</Text> : null}
-      </View>
-      {loading ? (
-        <ActivityIndicator color={Colors.tx1} style={{ marginVertical: Spacing.lg }} />
-      ) : !board || board.top.length === 0 ? (
-        <Text style={styles.muted}>No one has lit the way this week yet. Make a purchase and be first.</Text>
-      ) : (
-        <View style={styles.list}>
-          {board.top.map((row) => (
-            <View key={row.rank} style={[styles.boardRow, row.you && styles.boardRowYou]}>
-              <Text style={[styles.rank, row.rank <= 3 && { color: Colors.gold }]}>{row.rank}</Text>
-              <Text style={[styles.boardName, row.you && { color: Colors.tx0 }]} numberOfLines={1}>
-                {row.you ? 'You' : row.handle}
-              </Text>
-              <Text style={styles.boardShar}>{fmt(row.shar)}</Text>
-            </View>
-          ))}
-          {board.me.rank === null || board.me.rank > board.top.length ? (
-            <Text style={[styles.muted, { marginTop: Spacing.sm }]}>
-              {board.me.shar > 0 ? `You’re at ${fmt(board.me.shar)} Shar this week.` : 'You haven’t earned Shar this week yet.'}
-            </Text>
-          ) : null}
-        </View>
-      )}
     </View>
   );
 }
@@ -444,11 +405,6 @@ const styles = StyleSheet.create({
   rungLabel: { ...Type.label, color: Colors.tx2 },
   list: { marginTop: Spacing.xs },
   seeAll: { fontFamily: Fonts.sansSemiBold, fontSize: 14, color: SharColors.glow },
-  boardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 10, paddingHorizontal: Spacing.sm, borderRadius: Radii.md },
-  boardRowYou: { backgroundColor: SharColors.tint, borderWidth: 1, borderColor: SharColors.tintBorder },
-  rank: { width: 22, fontFamily: Fonts.monoBold, fontSize: 13, color: Colors.tx2, textAlign: 'center' },
-  boardName: { flex: 1, ...Type.body, color: Colors.tx1 },
-  boardShar: { fontFamily: Fonts.monoBold, fontSize: 14, color: Colors.tx0 },
   pill: { backgroundColor: SharColors.tint, borderRadius: 999, borderWidth: 1, borderColor: SharColors.tintBorder, paddingVertical: 2, paddingHorizontal: 10 },
   pillText: { fontFamily: Fonts.monoBold, fontSize: 12, color: SharColors.glow },
   codeBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.bg0, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },

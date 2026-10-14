@@ -1331,6 +1331,19 @@
     parse-png "^2.1.0"
     semver "^7.6.0"
 
+"@expo/image-utils@^0.11.6":
+  version "0.11.6"
+  resolved "https://registry.yarnpkg.com/@expo/image-utils/-/image-utils-0.11.6.tgz#3cc751d9e90cc7510351928e9c2fc02709c0b1dc"
+  integrity sha512-rmMpn7QGp6pUGRCQ3vvB9RP/vqq2q/PpToRh4dL/FbhSZOLZ1YTotpuLHf71FGOEfgKil/4PCd3hkWe/CCeiEg==
+  dependencies:
+    "@expo/require-utils" "^57.0.6"
+    "@expo/spawn-async" "^1.8.0"
+    chalk "^4.0.0"
+    getenv "^2.0.0"
+    jimp-compact "0.16.1"
+    parse-png "^2.1.0"
+    semver "^7.6.0"
+
 "@expo/inline-modules@^0.1.6":
   version "0.1.6"
   resolved "https://registry.yarnpkg.com/@expo/inline-modules/-/inline-modules-0.1.6.tgz#9f7fb2adead2dfb8b4456e01a315a676b6e08332"
@@ -1492,6 +1505,15 @@
   version "57.0.5"
   resolved "https://registry.yarnpkg.com/@expo/require-utils/-/require-utils-57.0.5.tgz#bde8d170b0b53fa1cd77aa73a305e5a16f4229a3"
   integrity sha512-kTAXj9lDFEIPMsbAOGCGbjBbMF0oi7CqkYM79KOX0DDD9wSwXmlKL1z2h8OwsrBf7mbOo2DjlRvZu4BEjrIxGw==
+  dependencies:
+    "@babel/code-frame" "^7.20.0"
+    "@babel/core" "^7.25.2"
+    "@babel/plugin-transform-modules-commonjs" "^7.24.8"
+
+"@expo/require-utils@^57.0.6":
+  version "57.0.6"
+  resolved "https://registry.yarnpkg.com/@expo/require-utils/-/require-utils-57.0.6.tgz#b6f0c38cca8261ec8aa8949bfe176fe3cdb26a55"
+  integrity sha512-PKWfFdMgwWrlSP6NGplCi2nK0dEM5MeJ2Cj1ijr5VWTmZ+pKsJsJw2dWkBtlFDyxMY8eUjCPZ7hoqFEnbc0Pcw==
   dependencies:
     "@babel/code-frame" "^7.20.0"
     "@babel/core" "^7.25.2"
@@ -3190,6 +3212,11 @@ babel-preset-expo@~57.0.8:
     babel-plugin-transform-flow-enums "^0.0.2"
     debug "^4.3.4"
 
+badgin@^1.1.5:
+  version "1.2.3"
+  resolved "https://registry.yarnpkg.com/badgin/-/badgin-1.2.3.tgz#994b5f519827d7d5422224825b2c8faea2bc43ad"
+  integrity sha512-NQGA7LcfCpSzIbGRbkgjgdWkjy7HI+Th5VLxTJfW5EeaAf3fnS+xWQaQOCYiny+q6QSvxqoSO04vCx+4u++EJw==
+
 balanced-match@^4.0.2:
   version "4.0.4"
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-4.0.4.tgz#bfb10662feed8196a2c62e7c68e17720c274179a"
@@ -3945,6 +3972,13 @@ expo-constants@~57.0.19:
   dependencies:
     "@expo/env" "~2.4.3"
 
+expo-constants@~57.0.21:
+  version "57.0.21"
+  resolved "https://registry.yarnpkg.com/expo-constants/-/expo-constants-57.0.21.tgz#44867d264bec85147c808eba1d4635aad1e11d52"
+  integrity sha512-D5fV2GELYGbNkoiEVZZp5zrUXZDaAx6ZzErDzGirm3jCjOhaE8iU/GyJiB0ZQE+K4Bg8gY82nIQ/RZR8CJLVjA==
+  dependencies:
+    "@expo/env" "~2.4.3"
+
 expo-crypto@~57.0.3:
   version "57.0.3"
   resolved "https://registry.yarnpkg.com/expo-crypto/-/expo-crypto-57.0.3.tgz#e232bf2775f268baa8c5afab30085dc850410bb2"
@@ -4066,6 +4100,17 @@ expo-modules-jsi@~57.0.5:
   version "57.0.5"
   resolved "https://registry.yarnpkg.com/expo-modules-jsi/-/expo-modules-jsi-57.0.5.tgz#cd7fd231ba23e31c673d27ca959372d02559ef33"
   integrity sha512-NQF7MUF0j3rQHV8KJqETYA1SrJr3USvQ/AWEhODo+unMRFBDP9BKpn8+aNGGmx6fa2XLnqC2qulVw4DT6Gp13Q==
+
+expo-notifications@~57.0.22:
+  version "57.0.22"
+  resolved "https://registry.yarnpkg.com/expo-notifications/-/expo-notifications-57.0.22.tgz#3a1c5e34392140a5a2f28dac101f700466b58cf8"
+  integrity sha512-JVZCyY660d7L5bKcNK8J3/ghG70WtyRYlvAQgAISlgRCt3QWhghhodx/j+nRAPcfc2mmCzUjNB0Ck+LbzpBEMg==
+  dependencies:
+    "@expo/image-utils" "^0.11.6"
+    abort-controller "^3.0.0"
+    badgin "^1.1.5"
+    expo-application "~57.0.3"
+    expo-constants "~57.0.21"
 
 expo-router@~57.0.16:
   version "57.0.16"
@@ -5569,6 +5614,11 @@ react-is@^19.1.0:
   version "19.2.8"
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-19.2.8.tgz#09826f9fbc187bc668e3e5c62edc001f804d5018"
   integrity sha512-s5un28nYxKJw5gvUHyW5PCC28CvBqLu9r3cWgzHT4Vo/5fqqkFcdRYsGcKf50WMPpjjFZS5d76fn3YCo2njKwQ==
+
+react-native-android-widget@^0.22.1:
+  version "0.22.1"
+  resolved "https://registry.yarnpkg.com/react-native-android-widget/-/react-native-android-widget-0.22.1.tgz#a2410c3a996c0e722cc31a7065193b782e67c35e"
+  integrity sha512-BBMuqShRrxV23Z09Rn5zNHJaPegCnH3DhhZQgXbhw2GMh45Gez0RbwKTIWHftuW4nLrqWy6esz8XwecUZLiZKA==
 
 react-native-drawer-layout@^4.2.2:
   version "4.2.10"

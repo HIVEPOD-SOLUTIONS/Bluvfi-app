@@ -6,6 +6,8 @@
 export const Colors = {
   blue: '#0A0AE8',
   blueDeep: '#0000CC',
+  /** The brand blue lifted so text and icons on the dark surfaces read clearly (the plain blue is for buttons and fills). */
+  blueBright: '#7B8BFF',
   sage: '#8FAE82',
   sageLight: '#AFC69F',
   gold: '#C9A84C',
@@ -79,4 +81,4 @@ export const Type = {
   amount: { fontFamily: Fonts.monoBold, fontSize: 24 },
 } as const;
 
-export const BottomNavHeight = 64;
+export const BottomNavHeight = 72;

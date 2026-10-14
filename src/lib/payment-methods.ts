@@ -16,7 +16,8 @@ export type MethodGroup = 'USDT' | 'USDC' | 'BRUSD' | 'Crypto' | 'Exchange Pay';
 
 export type ChainKey =
   | 'ethereum' | 'base' | 'polygon' | 'arbitrum' | 'optimism' | 'bsc' | 'solana' | 'tron' | 'ton' | 'sui'
-  | 'bitcoin' | 'lightning' | 'xrpl' | 'litecoin' | 'dogecoin' | 'dash' | 'ark' | 'tempo' | 'binance' | 'kraken';
+  | 'bitcoin' | 'lightning' | 'xrpl' | 'litecoin' | 'dogecoin' | 'dash' | 'ark' | 'tempo' | 'binance' | 'kraken'
+  | 'avalanche' | 'plasma' | 'soneium' | 'xlayer' | 'celo' | 'sonic' | 'worldchain';
 
 export interface PaymentMethod {
   id: string;
@@ -134,6 +135,7 @@ export function methodSummary(x: PaymentMethod): string {
 export const CHAIN_NAME: Record<ChainKey, string> = {
   ethereum: 'Ethereum', base: 'Base', polygon: 'Polygon', arbitrum: 'Arbitrum', optimism: 'Optimism', bsc: 'BSC', solana: 'Solana', tron: 'Tron', ton: 'TON', sui: 'SUI',
   bitcoin: 'Bitcoin', lightning: 'Lightning', xrpl: 'XRP Ledger', litecoin: 'Litecoin', dogecoin: 'Dogecoin', dash: 'Dash', ark: 'ARK', tempo: 'Tempo', binance: 'Binance Pay', kraken: 'Kraken Pay',
+  avalanche: 'Avalanche', plasma: 'Plasma', soneium: 'Soneium', xlayer: 'X Layer', celo: 'Celo', sonic: 'Sonic', worldchain: 'World Chain',
 };
 
 /** A sentence for what went wrong creating an order, so people never see a raw API error. */

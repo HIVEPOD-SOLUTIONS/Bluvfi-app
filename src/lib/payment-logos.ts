@@ -21,23 +21,28 @@ const llama = (name: string) => `https://icons.llamao.fi/icons/chains/rsz_${name
 /** CoinMarketCap ids of the coins and tokens. */
 export const TOKEN_CMC_ID: Readonly<Record<string, number>> = {
   USDC: 3408, USDT: 825, ETH: 1027, SOL: 5426, BTC: 1, TON: 11419, SUI: 20947, BNB: 1839, XRP: 52, LTC: 2, DOGE: 74, DASH: 131, ARK: 1586,
+  // Cryptorefills' other coins (each id checked against CoinMarketCap): Tron, Worldcoin, Dai, PayPal USD, First Digital USD, Ethena USDe, Euro Coin, World Liberty USD1, Sky USDS.
+  TRX: 1958, WLD: 13502, DAI: 4943, PYUSD: 27772, FDUSD: 26081, USDE: 29470, EUROC: 20641, USD1: 36148, USDS: 33039, GRAM: 11419,
 };
 
 const TOKEN_COLOR: Readonly<Record<string, string>> = {
   USDC: '#2775CA', USDT: '#26A17B', ETH: '#627EEA', SOL: '#9945FF', BTC: '#F7931A', TON: '#0098EA', SUI: '#4DA2FF', BNB: '#F3BA2F', XRP: '#23292F',
   LTC: '#345D9D', DOGE: '#C2A633', DASH: '#008CE7', ARK: '#F70000', BRUSD: '#1F8A70', BRC: '#9945FF', KRAKEN: '#5741D9',
+  TRX: '#EB0029', WLD: '#1F1F1F', DAI: '#F5AC37', PYUSD: '#0070E0', FDUSD: '#2D7DF6', USDE: '#2B2B2B', EUROC: '#2775CA', USD1: '#D4AF37', USDS: '#F5A623', GRAM: '#0098EA',
 };
 
 /** The DefiLlama icon name of each chain (some chains are served by their coin's logo instead, see CHAIN_LOGO). */
 const CHAIN_LLAMA: Partial<Record<ChainKey, string>> = {
   ethereum: 'ethereum', base: 'base', polygon: 'polygon', arbitrum: 'arbitrum', optimism: 'optimism', bsc: 'binance', solana: 'solana', tron: 'tron', ton: 'ton',
   sui: 'sui', bitcoin: 'bitcoin', xrpl: 'xrpl', litecoin: 'litecoin', dogecoin: 'doge', tempo: 'tempo',
+  avalanche: 'avalanche', plasma: 'plasma', soneium: 'soneium', celo: 'celo', sonic: 'sonic',
 };
 
 const CHAIN_COLOR: Readonly<Record<ChainKey, string>> = {
   ethereum: '#627EEA', base: '#0052FF', polygon: '#8247E5', arbitrum: '#28A0F0', optimism: '#FF0420', bsc: '#F3BA2F', solana: '#9945FF', tron: '#EB0029', ton: '#0098EA',
   sui: '#4DA2FF', bitcoin: '#F7931A', lightning: '#F7931A', xrpl: '#23292F', litecoin: '#345D9D', dogecoin: '#C2A633', dash: '#008CE7', ark: '#F70000', tempo: '#2DD4BF',
   binance: '#F3BA2F', kraken: '#5741D9',
+  avalanche: '#E84142', plasma: '#12B76A', soneium: '#1B1B1F', xlayer: '#111111', celo: '#FCFF52', sonic: '#FE9A3C', worldchain: '#1F1F1F',
 };
 
 export const tokenLogo = (token: string): LogoSpec => {

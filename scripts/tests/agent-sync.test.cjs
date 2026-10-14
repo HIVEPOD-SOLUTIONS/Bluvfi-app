@@ -7,7 +7,7 @@
  */
 const fs = require("fs");
 const path = require("path");
-const { reporter } = require("./_harness.cjs");
+const { reporter, makeLoader } = require("./_harness.cjs");
 const { check, finish } = reporter();
 
 const web = path.join(__dirname, "../../../bluvfi");
@@ -49,7 +49,7 @@ check("provider links (bluvfi://provider/<id>) are handled too", /PROVIDER_LINK/
   check("every profile row (except the team-only Admin) is described in the agent's prompt: " + rows.join(", "), rows.length >= 4 && rows.every(named), rows.filter((t) => !named(t)).join(", "));
   check("the prompt never links to an Admin screen", !prompt.includes("bluvfi://admin") && !/\]\(bluvfi:\/\/admin/i.test(prompt));
 }
-const routes = new Set(["/crypto", "/profile", "/", "/shar", "/network", "/faq", "/activity", "/creator", "/invite"]);
+const routes = new Set(["/crypto", "/profile", "/", "/shar", "/network", "/faq", "/activity", "/creator", "/invite", "/spark"]);
 const targets = [...bubble.matchAll(/'bluvfi:\/\/[a-z]+': '([^']+)'/g)].map((m) => m[1]);
 check("every link target is a real screen file", targets.every((t) => routes.has(t) && (t === "/" || ["crypto", "profile", "shar", "network"].includes(t.slice(1)) ? true : fs.existsSync(path.join(app, "src/app", t.slice(1) + ".tsx")))), targets.join());
 
@@ -99,7 +99,12 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
   const home = read(app, "src/app/(tabs)/index.tsx");
   const minFund = /const MIN_FUND_AMOUNT = (\d+)/.exec(fund)?.[1];
   check("Fund Wallet: the tabs, the minimum and the networks the prompt lists are the real ones", ["Buy", "Balances", "Send", "Bridge", "Solana"].every((t) => fund.includes(`label: '`) && fund.includes(t)) && minFund === "11" && prompt.includes(`$${minFund} minimum`) && ["Base", "Ethereum", "Arbitrum", "Optimism", "Polygon", "Avalanche", "Solana"].every((n) => fund.includes(`label: '${n}'`) && prompt.includes(n)));
-  check("Invest: the view names, filter chips and provider cards the prompt lists exist", ["My Portfolio", "Market"].every((x) => invest.includes(x)) && ["All", "Stocks", "Pre-IPO", "ETFs", "Crypto Trading"].every((x) => invest.includes(`label: '${x}'`) && prompt.includes(x)) && ["Backpack", "GetEquity", "Nosana GPU Cloud", "Doma Protocol"].every((x) => invest.includes(`name="${x}"`) && prompt.includes(x)));
+  check("Invest: the view names, filter chips and provider cards the prompt lists exist", ["My Portfolio", "Market"].every((x) => invest.includes(x)) && ["All", "Stocks", "Pre-IPO", "ETFs"].every((x) => invest.includes(`label: '${x}'`) && prompt.includes(x)) && ["Backpack", "GetEquity"].every((x) => invest.includes(`name="${x}"`) && prompt.includes(x)));
+  check("Invest: the screen lists only Backpack and GetEquity (Nosana, Doma and Crypto Trading are behind SHOW_EXTRA_PROVIDERS), and the prompt does not send people to cards that are not there", invest.includes("SHOW_EXTRA_PROVIDERS = false") && invest.includes("SHOW_EXTRA_PROVIDERS && (filter === 'crypto'") && !prompt.includes("filter chips All, Stocks, Pre-IPO, ETFs and Crypto Trading") && !prompt.includes("Market cards are Backpack (US stocks and ETFs, 1,100+, fractional shares, USDC), GetEquity (private markets, needs a real KYC-approved account), Nosana"));
+  const crTools = read(web, "src/lib/ai/cryptorefills-tools.ts");
+  const crSheet = read(app, "src/components/dashboard/CryptorefillsProductSheet.tsx");
+  const biSheet = read(app, "src/components/dashboard/BitrefillProductSheet.tsx");
+  check("Gift: the app offers Send as a Gift on Bitrefill and Cryptorefills, and the agent can do the same (Cryptorefills giftToEmail, Bitrefill recipient email) and says stocks and equity cannot be gifted", crSheet.includes("Send as a Gift") && biSheet.includes("Send as a Gift") && crTools.includes("giftToEmail") && crTools.includes("giftToEmail ?? email") && toolsIndex.includes("pass the RECIPIENT's email") && prompt.includes("Send as a Gift") && prompt.includes("giftToEmail") && prompt.includes("cannot be sent as gifts"));
   check("Invest: there is no xStocks or gold screen, as the prompt says (so it never tells people to buy them here)", !/xstocks|oro|grail/i.test(invest) && prompt.includes("There is no screen for xStocks or for Oro gold"));
   check("Crypto tab: search and the 24H/7D/30D/1Y chart ranges the prompt lists exist, and it has no buy or sell", cryptoTab.includes("Search coin name or ticker") && ["24H", "7D", "30D", "1Y"].every((r) => coin.includes(`key: '${r}'`) && prompt.includes(r)) && !/Buy|Sell/.test(coin.replace(/Buy USDC/g, "")));
   check("Bills: My Bills / Browse and the catalog names the prompt lists exist", bills.includes("My Bills") && bills.includes("Browse") && ["Gift Cards", "Phone Refills", "eSIM Data"].every((x) => bitrefill.includes(`label: '${x}'`) && prompt.includes(x)));
@@ -137,7 +142,27 @@ check("the agent is told it cannot move SKR, claim, add credits or change a list
   check("ads: the cooldown the prompt names is the one the app uses", read(app, "src/lib/admob.ts").includes("INTERSTITIAL_COOLDOWN_MS = 30_000"));
   check("bills: the prompt describes the product pages (description, how to redeem, reviews, token/chain payment choices) for both providers", prompt.includes("opens its own page in the app") && prompt.includes("accepted payment methods, reviews and terms") && prompt.includes("accepted token and chain") && prompt.includes("shows its exact deposit address, amount and a QR") && prompt.includes("each with its logo") && prompt.includes("Cryptorefills works the same way"));
   check("bills: the prompt knows the Bitrefill page uses the web-like checkout stages", ["Top-up details", "Delivery details", "Send as a Gift", "Pay with chips", "Sending to", "Receipt to", "Code sent to"].every((t) => prompt.includes(t)));
-  check("notifications: the app has no push notifications, as the prompt says", !pkg.includes("expo-notifications") && prompt.includes("no push notifications yet"));
+  check("notifications: opt-in reminders and alerts (a switch on the Spark screen, off until turned on), through Firebase direct, as the prompt says", pkg.includes("expo-notifications") && prompt.includes("Notifications are opt-in") && prompt.includes("Reminders and alerts") && read(app, "src/app/spark.tsx").includes("Reminders and alerts") && read(app, "src/lib/reminders.ts").includes("scheduleNotificationAsync") && read(app, "src/lib/reminders.ts").includes("getDevicePushTokenAsync") && !/getExpoPushTokenAsync/.test(read(app, "src/lib/reminders.ts")) && read(web, "src/lib/push.ts").includes("fcm.googleapis.com") && prompt.includes("never carries amounts"));
+  {
+    // Squads, weekly prizes and the widget: what the prompt says is what the code does
+    const sq = makeLoader({}, web)("src/lib/shar-squad-rules.ts");
+    check("squads: the prompt's numbers (10 people, 50 Shar each, at least 100, 2 to 24 letters, a 6-character code) are the server's", prompt.includes("up to 10 friends") && prompt.includes("50 Shar per member, at least 100") && prompt.includes("2 to 24 letters or numbers") && prompt.includes("6-character code") && sq.SQUAD.maxMembers === 10 && sq.SQUAD.goalPerMember === 50 && sq.SQUAD.minGoal === 100 && sq.SQUAD.nameMin === 2 && sq.SQUAD.nameMax === 24 && sq.SQUAD.codeLength === 6);
+    check("squads: the agent can read the user's squad (get_my_shar), is told it can't start or join one, and the prompt says strangers only see a generated name", tools.includes("squad: await squadFor(userId)") && prompt.includes("You cannot start, join or leave a squad") && prompt.includes("generated name") && read(app, "src/components/shar/SquadCard.tsx").includes("SQUADS THIS WEEK"));
+    check("squads: reaching the goal pays nothing extra, and the prompt does not promise otherwise", prompt.includes("recognition only: it pays no extra Shar") && !read(web, "src/lib/shar-squads.ts").includes("insert into shar_sparks") && !read(web, "src/lib/shar-squads.ts").includes("shar_weekly_awards"));
+    const sparkRules = makeLoader({}, web)("src/lib/shar-spark-rules.ts");
+    check("prizes: paid as Shar through the normal claim, off until the team sets them, and the prompt says so (no prize is promised unless the tool lists one)", Array.isArray(sparkRules.WEEKLY_PRIZE_SHAR) && prompt.includes("paid as Shar (claimed as SKR the usual way)") && prompt.includes("never promise a prize unless get_my_shar weeklyTrial.prizes lists one") && tools.includes("prizes: board.prizes"));
+    check("widget: the prompt describes the Daily Spark home-screen widget and the build declares it", prompt.includes("home-screen widget") && prompt.includes("Widgets, then Daily Spark") && read(app, "app.json").includes('"label": "Daily Spark"'));
+  }
+  {
+    // Daily Spark: the numbers the prompt gives are the server's own
+    const sr = makeLoader({}, web)("src/lib/shar-spark-rules.ts");
+    const pay = (d, seeker) => sr.sparkReward(d, seeker).shar;
+    check("Daily Spark: the prompt's amounts (2, 3, 4, +10 on the 7th day, x1.5 for a Seeker holder, midnight UTC) are what the server pays", prompt.includes("Days 1 and 2 pay 2 Shar") && prompt.includes("days 3 to 6 pay 3") && prompt.includes("day 7 onwards pay 4") && prompt.includes("adds a 10 Shar bonus") && prompt.includes("x1.5 on the day and on the bonus") && prompt.includes("resets at 00:00 UTC") && pay(1, false) === 2 && pay(2, false) === 2 && pay(3, false) === 3 && pay(6, false) === 3 && pay(8, false) === 4 && pay(7, false) === 14 && sr.SPARK.seekerMultiplier === 1.5);
+    check("Daily Spark: the Seeker boost is checked on the server (never trusted from the app), and the prompt says so", web && read(web, "src/lib/shar.ts").includes("isSeekerHolder(userId)") && read(web, "src/lib/seeker-sgt.ts").includes("getUserWalletAddresses") && prompt.includes("checked on the server when they collect"));
+    check("Daily Spark: the agent can read the streak and the badges (get_my_shar), and knows every badge the app shows", tools.includes("dailySpark:") && tools.includes("badges: s.badges") && sr.BADGES.every((b) => prompt.includes(b.label.replace(" streak", "")) || prompt.includes(b.label)), sr.BADGES.filter((b) => !(prompt.includes(b.label.replace(" streak", "")) || prompt.includes(b.label))).map((b) => b.label).join());
+    check("Daily Spark: the app screen, the Home card and the Profile row the prompt names exist", fs.existsSync(path.join(app, "src/app/spark.tsx")) && read(app, "src/app/(tabs)/index.tsx").includes("<SparkCard />") && read(app, "src/components/profile/ProfileContent.tsx").includes("<Text style={styles.sharTitle}>Daily Spark</Text>") && prompt.includes("bluvfi://spark"));
+    check("weekly board: open to everyone on Invite friends and the Spark screen, as the prompt says", read(app, "src/app/invite.tsx").includes("<WeeklyBoard") && read(app, "src/app/spark.tsx").includes("<WeeklyBoard") && prompt.includes("open to everyone"));
+  }
   check("voice: the permission message and the settings hand-off the prompt describes exist in the app", read(app, "src/hooks/use-voice-input.ts").includes("Microphone access is off") && read(app, "src/hooks/use-voice-input.ts").includes("openSettings") && prompt.includes("Microphone access is off"));
   check("Premium: the app really has an upgrade path in Profile, as the prompt says", read(app, "src/app/(tabs)/profile.tsx").includes("onUpgrade") && prompt.includes("Bluvfi Premium (Profile, Upgrade)"));
   check("the quota hint the prompt mentions is real", sheet.includes(" left today") && sheet.includes("remainingToday <= 20") && prompt.includes("messages left today"));

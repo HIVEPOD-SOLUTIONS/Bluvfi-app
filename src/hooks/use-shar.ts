@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api';
 import { microToUsd, priceUsd } from '@/lib/money';
+import { ignoreNextGain } from '@/lib/shar-celebrate';
 import type { creatorPayload } from '@/lib/provider-publisher';
 import type { AuthType, InputField, authPayload } from '@/lib/provider-config';
 import type { ActivityPage, ActivitySource } from '@/lib/activity-format';
@@ -10,12 +11,46 @@ import { useApiClient, useApiQuery } from './use-api';
 
 export interface SharActivity {
   id: string;
-  kind: 'purchase' | 'claim' | 'referral' | 'provider';
+  kind: 'purchase' | 'claim' | 'referral' | 'provider' | 'spark' | 'prize';
   title: string;
   /** Signed: negative for claims. */
   shar: number;
   state: 'available' | 'pending' | 'requested' | 'sending' | 'paid' | 'rejected';
   at: string;
+}
+
+export type BadgeKey = 'first_spark' | 'streak_7' | 'streak_30' | 'first_purchase' | 'first_companion' | 'first_provider' | 'first_claim' | 'squad_member' | 'seeker_holder';
+
+export interface SharBadge {
+  key: BadgeKey;
+  label: string;
+  hint: string;
+  earned: boolean;
+}
+
+/** The Daily Spark card. The streak and amounts are worked out by the server; the app only shows them. */
+export interface SparkState {
+  /** False until the server's spark table exists. */
+  ready: boolean;
+  streak: number;
+  collectedToday: boolean;
+  /** When the next spark can be collected (00:00 UTC). */
+  nextAt: string;
+  next: { streak: number; shar: number; daily: number; bonus: number; multiplier: number; seeker: boolean };
+  /** A verified Seeker Genesis Token holder (checked by the server). */
+  seeker: boolean;
+  days: { day: string; collected: boolean; today: boolean }[];
+  rules: { baseShar: number; weekBonusShar: number; seekerMultiplier: number; streakTiers: { from: number; multiplier: number }[] };
+}
+
+export interface SparkResult {
+  day: string;
+  streak: number;
+  shar: number;
+  daily: number;
+  bonus: number;
+  multiplier: number;
+  seeker: boolean;
 }
 
 export interface SharSummary {
@@ -31,6 +66,8 @@ export interface SharSummary {
   claim: { minShar: number; open: { id: string; shar: number; skr: string; wallet: string; at: string; sending: boolean } | null };
   referral: { code: string | null; referred: number; bonus: number };
   provider: { owned: number; earned: number };
+  spark: SparkState;
+  badges: SharBadge[];
   activity: SharActivity[];
   rules: { perUsd: number; minPurchaseUsd: number; referralBonusPct: number; providerUseShar: number; skrPerShar: number; minClaimShar: number };
 }
@@ -38,8 +75,43 @@ export interface SharSummary {
 export interface SharLeaderboard {
   weekStartsAt: string;
   weekEndsAt: string;
-  top: { rank: number; handle: string; shar: number; you: boolean }[];
+  top: { rank: number; handle: string; shar: number; you: boolean; seeker: boolean; prizeShar: number | null }[];
   me: { rank: number | null; shar: number };
+  /** The weekly prizes by place, paid as Shar (and what that is in SKR); empty while the team has set none. */
+  prizes: { place: number; shar: number; skr: string }[];
+  /** The least Shar a person must earn in the week to win a prize. */
+  prizeMinShar: number;
+}
+
+export interface SquadMember {
+  handle: string;
+  you: boolean;
+  owner: boolean;
+  shar: number;
+}
+
+export interface SquadInfo {
+  name: string;
+  code: string;
+  isOwner: boolean;
+  memberCount: number;
+  full: boolean;
+  members: SquadMember[];
+  goal: number;
+  shar: number;
+  progress: number;
+  reached: boolean;
+  remaining: number;
+}
+
+export interface SquadView {
+  /** False until the server's squad tables exist. */
+  ready: boolean;
+  squad: SquadInfo | null;
+  board: { rank: number; name: string; shar: number; members: number; you: boolean; reached: boolean }[];
+  myRank?: number | null;
+  rules: { maxMembers: number; goalPerMember: number; minGoal: number; nameMin: number; nameMax: number; codeLength: number };
+  weekEndsAt: string;
 }
 
 export function useShar() {
@@ -48,6 +120,40 @@ export function useShar() {
 
 export function useSharLeaderboard() {
   return useApiQuery<SharLeaderboard>(['shar', 'leaderboard'], '/api/shar/leaderboard', undefined, { staleTime: 60_000, retry: 1 });
+}
+
+/** Collects today's Daily Spark. The server decides the streak and the amount; a 409 means today's is already taken. */
+export function useCollectSpark() {
+  const call = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => call<{ spark: SparkResult }>('/api/shar/spark', { method: 'POST' }),
+    onSuccess: (res) => {
+      // The Spark screen celebrates these Shar itself, so the app-wide celebration must not do it a second time when the summary reloads.
+      ignoreNextGain(res.spark.shar);
+      qc.invalidateQueries({ queryKey: ['shar'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
+    },
+  });
+}
+
+/** The person's squad (members' weeks, the weekly goal) and this week's board of squads. */
+export function useSquad() {
+  return useApiQuery<SquadView>(['shar', 'squad'], '/api/shar/squad', undefined, { staleTime: 30_000, retry: 1 });
+}
+
+/** Start, join or leave a squad. The server's answer is the fresh squad view. */
+export function useSquadAction() {
+  const call = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { action: 'create'; name: string } | { action: 'join'; code: string } | { action: 'leave' }) =>
+      call<{ code?: string; view: SquadView }>('/api/shar/squad', { method: 'POST', body: input }),
+    onSuccess: (res) => {
+      qc.setQueryData(['shar', 'squad'], res.view);
+      qc.invalidateQueries({ queryKey: ['shar'] });
+    },
+  });
 }
 
 export function useClaimShar() {

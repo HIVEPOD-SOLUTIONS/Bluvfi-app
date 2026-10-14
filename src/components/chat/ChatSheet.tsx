@@ -14,13 +14,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import { Logo } from '@/components/ui/Logo';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { showRewardedAd } from '@/lib/admob';
 import { usePremium } from '@/components/profile/ProfileContent';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import { MicButton, VoiceBar } from './VoiceBar';
+import { SendIcon } from './SendIcon';
 import { API_BASE_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useChatSheet } from '@/lib/chat-context';
@@ -46,14 +46,6 @@ const SHEET_HEIGHT_RATIO = 0.85;
 
 /** open_fund_wallet calls already acted on, so re-opening the sheet doesn't pop the wallet up again. */
 const handledWalletCalls = new Set<string>();
-
-function SendIcon() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 20 20" fill="none">
-      <Path d="M10 16V4M10 4l-5 5M10 4l5 5" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
 
 /**
  * The AI chat, as a sheet that slides up over the dashboard (like the web chat): Bluvfi mark

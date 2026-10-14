@@ -21,9 +21,12 @@ import {
 } from '@/lib/cryptorefills-checkout';
 import { categoryEmoji, prettyCategory, type CrBrand, type CrKind } from '@/lib/cryptorefills-categories';
 import type { CrPartnerRequest, CrRail } from '@/lib/cryptorefills-types';
-import { DIAL_CODES, emailProblem, phoneProblem, toE164 } from '@/lib/product-checkout';
+import { crChainLogo, crTokenLogo } from '@/lib/cryptorefills-logos';
+import { chainLogo, tokenLogo } from '@/lib/payment-logos';
+import { DIAL_CODES, emailProblem, giftProblem, phoneProblem, toE164 } from '@/lib/product-checkout';
 import { Logo } from './CatalogParts';
 import { Chip, Field, SummaryRow, Tag } from './ProductParts';
+import { LogoChip, TokenChainLogo } from './PaymentMethodPicker';
 
 type Step = 'detail' | 'quoting' | 'pay';
 type PayChoice = { rail: CrRail } | { other: CrPaymentMethod };
@@ -62,6 +65,9 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
   const [tried, setTried] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [quote, setQuote] = useState<number | null>(null);
+  const [isGift, setIsGift] = useState(false);
+  const [giftName, setGiftName] = useState('');
+  const [giftEmail, setGiftEmail] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +79,9 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
     setQuote(null);
     setPay({ rail: 'base' });
     setOtherCoin(null);
+    setIsGift(false);
+    setGiftName('');
+    setGiftEmail('');
     setPhone(`+${DIAL_CODES[country.code] ?? ''}`);
     setEmail((e) => e || accountEmail || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,7 +90,11 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
   const item = useMemo(() => items.find((i) => i.product_id === itemId) ?? items[0] ?? null, [items, itemId]);
   const num = Number(value);
   const isTopup = kind === 'topup';
+  // A gift sends the code or eSIM to someone else's email. A phone top-up already goes to whichever number is entered, so it needs no toggle.
+  const giftable = !isTopup;
+  const gifting = isGift && giftable;
   const problems = {
+    gift: gifting ? giftProblem(true, giftName, giftEmail) : null,
     email: emailProblem(email),
     phone: isTopup ? phoneProblem(phone, country.code) : null,
     amount: item ? rangeProblem(item, num) : null,
@@ -122,7 +135,7 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
   // What the payment card gets: the same order the assistant would have built.
   const output = useMemo(() => {
     if (step !== 'pay' || !item || !brand || !quote) return null;
-    const beneficiary = beneficiaryFor(kind, email, toE164(phone, country.code) ?? undefined);
+    const beneficiary = gifting ? giftEmail.trim() : beneficiaryFor(kind, email, toE164(phone, country.code) ?? undefined);
     const productValue = item.is_range ? num : undefined;
     const common = {
       pendingCryptorefillsPayment: true as const,
@@ -148,7 +161,7 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
     }
     const fallback = buildFallback({ email, beneficiary, item, productValue, country: country.code, rail: pay.rail, methods });
     return { ...common, payWith: pay.rail, rail: pay.rail, order: buildOrder({ email, beneficiary, item, productValue }), ...(fallback ? { fallbackPartnerOrder: fallback } : {}) };
-  }, [step, item, brand, quote, kind, email, phone, country.code, num, pay, methods]);
+  }, [step, item, brand, quote, kind, email, phone, country.code, num, pay, methods, gifting, giftEmail]);
 
   const onReport = (r: Record<string, unknown>) => {
     if (r.paid === false && r.error === 'Cancelled by user') setStep('detail');
@@ -178,7 +191,8 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
               <View style={styles.card}>
                 <SummaryRow label="Product" value={output.productName} />
                 <SummaryRow label="Price" value={`$${output.priceUsd.toFixed(2)}`} strong />
-                <SummaryRow label={isTopup ? 'To' : 'Receipt to'} value={isTopup ? output.recipient : email.trim()} />
+                {gifting ? <SummaryRow label="Gift to" value={`${giftName.trim()} · ${giftEmail.trim()}`} /> : null}
+                <SummaryRow label={isTopup ? 'To' : gifting ? 'Your receipt' : 'Receipt to'} value={isTopup ? output.recipient : email.trim()} />
                 <SummaryRow label="Pay with" value={payLabel} />
               </View>
               <CryptorefillsPaymentCard toolCallId={`product-${brand.brand_name}`} output={output} onReport={onReport} />
@@ -222,28 +236,51 @@ export function CryptorefillsProductSheet({ open, onClose, brand, kind, country,
                   ) : null}
 
                   {isTopup ? <Field label="Phone number to top up" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+234 801 234 5678" error={tried ? problems.phone : null} hint="With the country code, or just the number for your country." /> : null}
-                  <Field label="Your email" value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="you@example.com" error={tried ? problems.email : null} hint="Your receipt, and the code or eSIM, are sent here." />
+                  <Field label="Your email" value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="you@example.com" error={tried ? problems.email : null} hint={gifting ? 'Your receipt is sent here.' : 'Your receipt, and the code or eSIM, are sent here.'} />
+
+                  {giftable ? (
+                    <>
+                      <Pressable onPress={() => setIsGift((g) => !g)} accessibilityRole="switch" accessibilityState={{ checked: isGift }} style={[styles.giftToggle, isGift && styles.giftToggleOn]}>
+                        <Text style={styles.giftTitle}>🎁 Send as a Gift</Text>
+                        <View style={[styles.switchTrack, isGift && styles.switchTrackOn]}>
+                          <View style={[styles.switchThumb, isGift && styles.switchThumbOn]} />
+                        </View>
+                      </Pressable>
+                      {isGift ? (
+                        <View style={styles.giftBox}>
+                          <Text style={styles.hint}>The code or eSIM is sent straight to the recipient’s email.</Text>
+                          <Field label="Recipient Name" value={giftName} onChangeText={setGiftName} placeholder="e.g. Jane Doe" autoCapitalize="words" error={tried && problems.gift?.includes('name') ? problems.gift : null} />
+                          <Field label="Recipient Email" value={giftEmail} onChangeText={setGiftEmail} keyboardType="email-address" placeholder="recipient@example.com" error={tried && problems.gift && !problems.gift.includes('name') ? problems.gift : null} />
+                        </View>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Text style={styles.hint}>🎁 A top-up is a gift whenever the number above belongs to someone else: it is credited to that number.</Text>
+                  )}
 
                   <View style={{ gap: 8 }}>
                     <Text style={styles.label}>PAY WITH</Text>
                     <View style={styles.tags}>
-                      <Chip label="USDC · Base" sub="No gas" selected={'rail' in pay && pay.rail === 'base'} onPress={() => setPay({ rail: 'base' })} />
-                      <Chip label="USDC · Solana" sub="No gas" selected={'rail' in pay && pay.rail === 'solana'} onPress={() => setPay({ rail: 'solana' })} />
+                      <LogoChip logo={<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('base')} />} label="USDC · Base" sub="No gas" selected={'rail' in pay && pay.rail === 'base'} onPress={() => setPay({ rail: 'base' })} />
+                      <LogoChip logo={<TokenChainLogo token={tokenLogo('USDC')} chain={chainLogo('solana')} />} label="USDC · Solana" sub="No gas" selected={'rail' in pay && pay.rail === 'solana'} onPress={() => setPay({ rail: 'solana' })} />
                     </View>
                     {coins.length > 0 ? (
                       <>
                         <Text style={styles.hint}>Or another coin, sent to a deposit address:</Text>
                         <View style={styles.tags}>
-                          {coins.slice(0, 14).map((c) => (
-                            <Chip key={c} label={c} selected={otherCoin === c && 'other' in pay} onPress={() => { setOtherCoin(c); const ns = methods.filter((m) => m.coin === c); if (ns.length) setPay({ other: ns[0] }); }} />
+                          {coins.map((c) => (
+                            <LogoChip key={c} logo={<TokenChainLogo token={crTokenLogo(c)} />} label={c} selected={otherCoin === c && 'other' in pay} onPress={() => { setOtherCoin(c); const ns = methods.filter((m) => m.coin === c); if (ns.length) setPay({ other: ns[0] }); }} />
                           ))}
                         </View>
-                        {networks.length > 1 ? (
-                          <View style={styles.tags}>
-                            {networks.map((m) => (
-                              <Chip key={m.network} label={m.network} selected={'other' in pay && pay.other.network === m.network && pay.other.coin === m.coin} onPress={() => setPay({ other: m })} />
-                            ))}
-                          </View>
+                        {networks.length > 0 ? (
+                          <>
+                            <Text style={styles.hint}>Network for {otherCoin}:</Text>
+                            <View style={styles.tags}>
+                              {networks.map((m) => (
+                                <LogoChip key={m.network} logo={<TokenChainLogo token={crChainLogo(m.network, m.coin)} />} label={m.network} selected={'other' in pay && pay.other.network === m.network && pay.other.coin === m.coin} onPress={() => setPay({ other: m })} />
+                              ))}
+                            </View>
+                          </>
                         ) : null}
                       </>
                     ) : null}
@@ -280,4 +317,12 @@ const styles = StyleSheet.create({
   error: { ...Type.small, color: Colors.redAlert },
   note: { backgroundColor: Colors.bg0, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: Spacing.md },
   card: { backgroundColor: Colors.bg0, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: Spacing.sm },
+  giftToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, backgroundColor: Colors.bg0 },
+  giftToggleOn: { borderColor: Colors.borderSage, backgroundColor: 'rgba(143,174,130,0.08)' },
+  giftTitle: { ...Type.body, fontFamily: Fonts.sansSemiBold, color: Colors.tx0 },
+  giftBox: { backgroundColor: Colors.bg0, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: Spacing.md },
+  switchTrack: { width: 38, height: 22, borderRadius: 999, backgroundColor: Colors.bg3, justifyContent: 'center', paddingHorizontal: 3 },
+  switchTrackOn: { backgroundColor: Colors.sage },
+  switchThumb: { width: 16, height: 16, borderRadius: 8, backgroundColor: Colors.tx0 },
+  switchThumbOn: { alignSelf: 'flex-end', backgroundColor: Colors.bg0 },
 });

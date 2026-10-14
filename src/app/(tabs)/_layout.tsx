@@ -2,25 +2,25 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { Colors, Type, BottomNavHeight } from '@/constants/theme';
+import { Colors, Fonts, BottomNavHeight } from '@/constants/theme';
 import { ChatSheet } from '@/components/chat/ChatSheet';
 import { onAskAssistant } from '@/lib/ask-assistant';
 import { ChatProvider, useChatSheet } from '@/lib/chat-context';
 
 function HomeIcon({ color }: { color: string }) {
   return (
-    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
-      <Path d="M3 9l7-6 7 6v7a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1V9z" stroke={color} strokeWidth={1.5} strokeLinejoin="round" />
+    <Svg width={24} height={24} viewBox="0 0 20 20" fill="none">
+      <Path d="M3 9l7-6 7 6v7a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1V9z" stroke={color} strokeWidth={1.8} strokeLinejoin="round" />
     </Svg>
   );
 }
 function ChatIcon({ color }: { color: string }) {
   return (
-    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+    <Svg width={24} height={24} viewBox="0 0 20 20" fill="none">
       <Path
         d="M18 10c0 4.418-3.582 8-8 8a7.96 7.96 0 01-4-.107L2 19l1.107-4A7.96 7.96 0 012 10C2 5.582 5.582 2 10 2s8 3.582 8 8z"
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={1.8}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -29,17 +29,17 @@ function ChatIcon({ color }: { color: string }) {
 }
 function CryptoIcon({ color }: { color: string }) {
   return (
-    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
-      <Circle cx={10} cy={10} r={7.5} stroke={color} strokeWidth={1.5} />
-      <Path d="M8 6v8M12 6v8M7 8h5a1.5 1.5 0 010 3H7m0 0h5.5a1.5 1.5 0 010 3H7" stroke={color} strokeWidth={1.3} strokeLinecap="round" />
+    <Svg width={24} height={24} viewBox="0 0 20 20" fill="none">
+      <Circle cx={10} cy={10} r={7.5} stroke={color} strokeWidth={1.8} />
+      <Path d="M8 6v8M12 6v8M7 8h5a1.5 1.5 0 010 3H7m0 0h5.5a1.5 1.5 0 010 3H7" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
     </Svg>
   );
 }
 function ProfileIcon({ color }: { color: string }) {
   return (
-    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
-      <Circle cx={10} cy={6.5} r={3.5} stroke={color} strokeWidth={1.5} />
-      <Path d="M3 18c.8-3.6 3.8-6 7-6s6.2 2.4 7 6" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    <Svg width={24} height={24} viewBox="0 0 20 20" fill="none">
+      <Circle cx={10} cy={6.5} r={3.5} stroke={color} strokeWidth={1.8} />
+      <Path d="M3 18c.8-3.6 3.8-6 7-6s6.2 2.4 7 6" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -53,8 +53,11 @@ function ProfileIcon({ color }: { color: string }) {
  */
 const SCREEN_OPTIONS = {
   headerShown: false,
-  tabBarActiveTintColor: Colors.blue,
-  tabBarInactiveTintColor: Colors.tx1,
+  tabBarActiveTintColor: Colors.blueBright,
+  tabBarInactiveTintColor: Colors.tx0,
+  tabBarActiveBackgroundColor: 'rgba(123, 139, 255, 0.16)',
+  // A rounded highlight behind the open tab, so the menu reads at a glance.
+  tabBarItemStyle: { borderRadius: 16, marginHorizontal: 6, marginVertical: 8, paddingVertical: 2 },
   tabBarStyle: {
     backgroundColor: Colors.bg1,
     borderTopColor: Colors.border,
@@ -62,10 +65,9 @@ const SCREEN_OPTIONS = {
     height: BottomNavHeight,
   },
   tabBarLabelStyle: {
-    fontFamily: Type.label.fontFamily,
-    fontSize: Type.label.fontSize,
-    letterSpacing: Type.label.letterSpacing,
-    textTransform: Type.label.textTransform,
+    fontFamily: Fonts.sansSemiBold,
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
 } as const;
 

@@ -256,6 +256,22 @@ export function ProfileContent({ isPremium, onUpgrade, onBeforeLogout }: Profile
       <Pressable
         onPress={() => {
           onBeforeLogout?.();
+          router.push('/spark' as never);
+        }}
+        style={styles.sharRow}
+        accessibilityRole="button"
+        accessibilityLabel="Daily Spark"
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sharTitle}>Daily Spark</Text>
+          <Text style={styles.sharSub}>Collect Shar every day and keep your streak</Text>
+        </View>
+        <Text style={styles.sharGo}>›</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          onBeforeLogout?.();
           router.push('/invite' as never);
         }}
         style={styles.sharRow}

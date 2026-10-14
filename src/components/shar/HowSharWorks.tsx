@@ -28,6 +28,10 @@ export function HowSharWorks({ open, onClose, rules }: { open: boolean; onClose:
         : 'Every qualifying purchase earns Shar. It stays pending until the payment completes.',
     },
     {
+      title: 'Daily Spark',
+      body: 'Tap the orb once a day (it resets at midnight UTC) to collect a few Shar. Collect on days in a row to build a streak: longer streaks pay more, every 7th day adds a bonus, and verified Seeker Genesis holders get a boost. Miss a day and the streak starts over.',
+    },
+    {
       title: 'Companion boost',
       body: r
         ? `Invite a friend with your code. You earn ${r.referralBonusPct}% of the Shar they earn from spending, on top of your own.`

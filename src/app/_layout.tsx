@@ -19,6 +19,7 @@ import { WalletConnectionProvider } from '@/lib/wallet-connection';
 import { describeConversion, loadSkrPay, onAutoConversion } from '@/lib/skr-pay';
 import { Colors } from '@/constants/theme';
 import { BrandSplash } from '@/components/ui/BrandSplash';
+import { CelebrationHost } from '@/components/shar/CelebrationHost';
 import { initRevenueCat } from '@/lib/revenuecat';
 import { initAds } from '@/lib/admob';
 
@@ -149,6 +150,7 @@ function AuthGate() {
         <Stack.Screen name="provider/edit/[id]" />
         <Stack.Screen name="creator" />
         <Stack.Screen name="invite" />
+        <Stack.Screen name="spark" />
         <Stack.Screen name="activity" />
         <Stack.Screen name="faq" />
       </Stack.Protected>
@@ -164,5 +166,12 @@ function AuthGate() {
 
   // The connected-wallet state is shared by every signed-in screen (the tabs and the provider page alike). The provider is always mounted so a
   // hook can never run outside it; it drops the connection when signed out (userId null) and restores the saved one at sign-in.
-  return <WalletConnectionProvider userId={isAuthenticated ? userId : null}>{stack}</WalletConnectionProvider>;
+  const withHost = (
+    <>
+      {stack}
+      {/* Shar's moments (a gain, a rank-up) and the reminders, over every signed-in screen. */}
+      {isAuthenticated ? <CelebrationHost /> : null}
+    </>
+  );
+  return <WalletConnectionProvider userId={isAuthenticated ? userId : null}>{withHost}</WalletConnectionProvider>;
 }

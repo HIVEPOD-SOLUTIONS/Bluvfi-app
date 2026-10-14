@@ -7,20 +7,25 @@ import { StockLogo } from './StockLogo';
 
 /**
  * The Invest tab, laid out like the web's: a Portfolio Value card with "Ask AI for advice", a My Portfolio /
- * Market toggle, then (under Market) filter chips and the provider cards — Backpack (US stocks and ETFs),
- * GetEquity (private markets), Nosana and Doma. Tapping a provider opens its sheet, owned by Home.
+ * Market toggle, then (under Market) filter chips and the provider cards. Backpack (US stocks and ETFs) and
+ * GetEquity (private markets) are the two shown. Nosana and Doma still work through the assistant, and come back
+ * here when SHOW_EXTRA_PROVIDERS is true. Tapping a provider opens its sheet, owned by Home.
  */
+
+/** Set to true to list the Nosana GPU Cloud and Doma Protocol cards (and the Crypto Trading filter) again. */
+export const SHOW_EXTRA_PROVIDERS = false;
 
 export type ProviderId = 'getequity' | 'nosana' | 'doma';
 
-const MARKET_FILTERS = [
+const ALL_MARKET_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'stock', label: 'Stocks' },
   { key: 'ipo', label: 'Pre-IPO' },
   { key: 'etf', label: 'ETFs' },
   { key: 'crypto', label: 'Crypto Trading' },
 ] as const;
-type MarketFilter = (typeof MARKET_FILTERS)[number]['key'];
+type MarketFilter = (typeof ALL_MARKET_FILTERS)[number]['key'];
+const MARKET_FILTERS = ALL_MARKET_FILTERS.filter((f) => SHOW_EXTRA_PROVIDERS || f.key !== 'crypto');
 
 const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
@@ -118,7 +123,7 @@ export function InvestScreen({ onAskAi, onOpenBackpack, onOpenProvider, onSelect
             />
           )}
 
-          {(filter === 'crypto' || filter === 'all') && (
+          {SHOW_EXTRA_PROVIDERS && (filter === 'crypto' || filter === 'all') && (
             <>
               <ProviderCard
                 onPress={() => onOpenProvider('nosana')}

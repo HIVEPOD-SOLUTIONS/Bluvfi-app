@@ -7,6 +7,8 @@ import Svg, { Path } from 'react-native-svg';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { SharOrb } from '@/components/shar/SharOrb';
+import { SparkCard } from '@/components/shar/SparkCard';
+import { WeeklyBoard } from '@/components/shar/WeeklyBoard';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
 import { SharColors } from '@/constants/shar';
 import { useShar, useUseReferralCode } from '@/hooks/use-shar';
@@ -106,6 +108,9 @@ export default function InviteScreen() {
             </View>
           </View>
         )}
+
+        <SparkCard />
+        <WeeklyBoard limit={5} />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Have a friend’s code?</Text>

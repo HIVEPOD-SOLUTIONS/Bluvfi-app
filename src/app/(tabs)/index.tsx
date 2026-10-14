@@ -20,6 +20,7 @@ import { CoinSheet } from '@/components/crypto/CoinSheet';
 import { MicButton, VoiceBar } from '@/components/chat/VoiceBar';
 import { RecoveryCard } from '@/components/wallet/RecoveryCard';
 import { SharOrb } from '@/components/shar/SharOrb';
+import { SparkCard } from '@/components/shar/SparkCard';
 import { SharColors } from '@/constants/shar';
 import { useIsCreator, useShar } from '@/hooks/use-shar';
 import { useSharChime } from '@/hooks/use-shar-chime';
@@ -28,6 +29,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input';
 import type { SupportedCoin } from '@/hooks/use-crypto-prices';
 import { BitrefillCatalogSheet } from '@/components/dashboard/BitrefillCatalogSheet';
 import { CryptorefillsCatalogSheet } from '@/components/dashboard/CryptorefillsCatalogSheet';
+import { SendIcon } from '@/components/chat/SendIcon';
 import { BitrefillProductSheet } from '@/components/dashboard/BitrefillProductSheet';
 import { CryptorefillsProductSheet } from '@/components/dashboard/CryptorefillsProductSheet';
 import { useBillsCountry } from '@/lib/bills-country';
@@ -235,6 +237,9 @@ export default function HomeScreen() {
           )}
         </View>
 
+        {/* Daily Spark and the weekly trial: for everyone. Hidden until the first load succeeds. */}
+        <SparkCard />
+
         {/* Shar rewards: balance and rank at a glance, opens the full screen. Hidden until the first load succeeds. */}
         {shar && isCreator ? (
           <Pressable onPress={() => router.push('/shar')} style={styles.sharCard} accessibilityRole="button" accessibilityLabel="Open Shar rewards">
@@ -324,7 +329,7 @@ export default function HomeScreen() {
             />
             {askText.trim().length > 0 ? (
               <Pressable onPress={submitAsk} style={styles.askSend} accessibilityRole="button" accessibilityLabel="Send">
-                <Text style={styles.askSendText}>↑</Text>
+                <SendIcon />
               </Pressable>
             ) : (
               voice.available && <MicButton onPress={voice.permissionDenied ? voice.openSettings : voice.start} />

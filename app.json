@@ -51,9 +51,35 @@
         }
       ],
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#4352FF",
+          "defaultChannel": "spark"
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "Bluvfi uses the microphone so you can talk to the assistant."
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "SparkWidget",
+              "label": "Daily Spark",
+              "description": "Your Shar streak, and a tap to collect today's spark",
+              "minWidth": "180dp",
+              "minHeight": "90dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal",
+              "updatePeriodMillis": 1800000
+            }
+          ]
         }
       ]
     ],
