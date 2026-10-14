@@ -11,6 +11,12 @@ if (Platform.OS === 'android') {
   } catch (error) {
     console.warn('[widget] not available in this build:', error);
   }
+  // The background check for alerts has to be defined before any screen exists: Android can start it with the app closed.
+  try {
+    require('./src/lib/inbox-task');
+  } catch (error) {
+    console.warn('[alerts] the background check is not available in this build:', error);
+  }
 }
 
 require('expo-router/entry');

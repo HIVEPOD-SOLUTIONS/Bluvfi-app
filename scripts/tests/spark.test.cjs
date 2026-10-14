@@ -139,9 +139,58 @@ check("widget: the app keeps it in step (saves the streak when it changes) and w
 check("widget: the library is loaded defensively, so an older build without it still starts", read("src/widgets/sync-spark-widget.tsx").includes("catch {") && read("src/widgets/sync-spark-widget.tsx").includes("lib = null"));
 
 // ── push alerts
-check("push: turning on reminders also registers this phone's push address when there is one, and tells the person which they got", hooks.includes("/api/push/register") && hooks.includes("alerts: reminders ? await registerPush() : false") && spark.includes("res.alerts") && spark.includes("Reminders and alerts are on"));
-check("push: turning them off tells the server to forget this phone, and registering happens once per launch", hooks.includes("method: 'DELETE'") && hooks.includes("registered.current"));
-check("push: the token comes from Firebase through the notification module, and a build without Firebase just gets reminders", remSrc.includes("getDevicePushTokenAsync") && /catch \{\s*return null;/.test(remSrc));
+// ── alerts: no push service, the phone asks the server's inbox
+const inboxSrc = read("src/lib/inbox-poll.ts");
+const taskSrc = read("src/lib/inbox-task.ts");
+check("alerts: turning on reminders also asks the server for this phone's alert key, stores it, starts the background check, and tells the person which they got", hooks.includes("/api/notifications/key") && hooks.includes("saveInbox(made.key, made.cursor)") && hooks.includes("startInboxTask()") && hooks.includes("alerts: reminders ? await enableAlerts() : false") && spark.includes("res.alerts") && spark.includes("Reminders and alerts are on"));
+check("alerts: turning them off stops the check, forgets the key and has the server revoke it", hooks.includes("stopInboxTask()") && hooks.includes("clearInbox()") && hooks.includes("method: 'DELETE'") && hooks.includes("body: { key }"));
+check("alerts: the app checks on launch and each time it comes to the front, and restores the background schedule once per launch", hooks.includes("pollInbox();") && hooks.includes("AppState.addEventListener('change'") && hooks.includes("restored.current"));
+check("alerts: there is no Firebase, Google, Expo push or device-token code anywhere in the app's alert path", !/firebase|fcm|getDevicePushTokenAsync|getExpoPushTokenAsync|googleServicesFile|google-services/i.test([inboxSrc, taskSrc, hooks, remSrc].join(String.fromCharCode(10)).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")) && !fs.existsSync(path.join(root, "google-services.json")) && !/googleServicesFile/.test(read("app.json")));
+check("alerts: the background check is defined at the top level of a module the entry file loads first (before any screen), defensively", taskSrc.includes("TaskManager.defineTask(INBOX_TASK") && taskSrc.includes("registerTaskAsync(INBOX_TASK, { minimumInterval: INBOX_INTERVAL_MIN })") && /require\('\.\/src\/lib\/inbox-task'\)/.test(read("index.js")) && read("index.js").indexOf("inbox-task") < read("index.js").indexOf("require('expo-router/entry')") && taskSrc.includes("INBOX_INTERVAL_MIN = 15"));
+check("alerts: the background packages are installed at the SDK 57 version", /"expo-background-task": "~57\./.test(read("package.json")) && /"expo-task-manager": "~57\./.test(read("package.json")) && JSON.stringify(appJson.expo.plugins).includes('"expo-background-task"'));
+check("alerts: the wording is honest that alerts are not instant", spark.includes("not instant") && spark.includes("when your phone next checks"));
+
+// the poll itself, with a fake server, a fake store and a fake notification
+const mem = new Map();
+const deps = (replies, shown) => ({
+  fetchFn: async (url, init) => {
+    deps.last = { url, init };
+    const r = replies.shift();
+    if (r instanceof Error) throw r;
+    return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.body };
+  },
+  show: async (item) => {
+    shown.push(item.title);
+    return item.title !== "cannot-show";
+  },
+  storage: { get: async (k) => mem.get(k) ?? null, set: async (k, v) => void mem.set(k, v), remove: async (k) => void mem.delete(k) },
+});
+const poll = makeLoader({ "expo-secure-store": secure, "@/lib/api": { API_BASE_URL: "https://api.test" }, "@/lib/reminders": { showNow: async () => true } })("src/lib/inbox-poll.ts");
+const item = (id, title) => ({ id, title, body: title + " body", url: "bluvfi://spark", at: "2026-10-14T10:00:00.000Z" });
+{
+  const shown = [];
+  const none = await poll.pollInbox(deps([], shown));
+  check("poll: with alerts off (no key) nothing is asked and nothing shown", none.status === "off" && none.shown === 0 && shown.length === 0 && !deps.last);
+  await poll.saveInbox("bvi_key", 7, deps([], shown));
+  const r1 = await poll.pollInbox(deps([{ status: 200, body: { items: [item(8, "one"), item(9, "two")], cursor: 9 } }], shown));
+  check("poll: it asks from the saved cursor with the key as a bearer, shows each alert once, and moves the cursor", r1.status === "ok" && r1.shown === 2 && shown.join() === "one,two" && deps.last.url === "https://api.test/api/notifications/inbox?after=7" && deps.last.init.headers.Authorization === "Bearer bvi_key" && mem.get("bluvfi.inbox-cursor") === "9");
+  const r2 = await poll.pollInbox(deps([{ status: 200, body: { items: [], cursor: 9 } }], shown));
+  check("poll: asking again with nothing new shows nothing, and asks from the new cursor", r2.shown === 0 && deps.last.url.endsWith("after=9") && shown.length === 2);
+  const r3 = await poll.pollInbox(deps([new Error("offline")], shown));
+  check("poll: being offline is a quiet 'error', the cursor stays, and nothing throws", r3.status === "error" && mem.get("bluvfi.inbox-cursor") === "9");
+  const r4 = await poll.pollInbox(deps([{ status: 500, body: {} }], shown));
+  check("poll: a server error leaves everything as it was", r4.status === "error" && mem.get("bluvfi.inbox-key") === "bvi_key");
+  const r5 = await poll.pollInbox(deps([{ status: 200, body: { items: [item(10, "cannot-show"), item(11, "ok-after")], cursor: 11 } }], shown));
+  check("poll: an alert that can't be shown (notifications blocked) is skipped, not retried forever, and the ones after it still show", r5.shown === 1 && shown.includes("ok-after") && mem.get("bluvfi.inbox-cursor") === "11");
+  const r6 = await poll.pollInbox(deps([{ status: 200, body: { items: [{ id: 12, title: 5 }, item(13, "fine")], cursor: 13 } }], shown));
+  check("poll: a malformed alert from the server is ignored without breaking the rest", r6.shown === 1 && shown.includes("fine"));
+  const r7 = await poll.pollInbox(deps([{ status: 401, body: {} }], shown));
+  check("poll: when the server says the key is no longer valid the phone forgets it and stops asking", r7.status === "revoked" && !mem.has("bluvfi.inbox-key") && !mem.has("bluvfi.inbox-cursor") && (await poll.pollInbox(deps([], shown))).status === "off");
+  await poll.saveInbox("bvi_key2", 3.9, deps([], shown));
+  check("poll: the saved cursor is a whole, non-negative number", mem.get("bluvfi.inbox-cursor") === "3");
+  await poll.clearInbox(deps([], shown));
+  check("poll: turning alerts off clears the key and the cursor", mem.size === 0 || (!mem.has("bluvfi.inbox-key") && !mem.has("bluvfi.inbox-cursor")));
+}
 const allowed = [...hooks.slice(hooks.indexOf("NOTIFICATION_SCREENS"), hooks.indexOf("};", hooks.indexOf("NOTIFICATION_SCREENS"))).matchAll(/'(bluvfi:\/\/[a-z]+)'/g)].map((m) => m[1]).sort();
 check("push: a notification can only open one of four known screens", allowed.join() === "bluvfi://activity,bluvfi://network,bluvfi://shar,bluvfi://spark", allowed.join());
 

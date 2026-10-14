@@ -87,8 +87,8 @@ export default function SparkScreen() {
     }
     const res = await reminders.turnOn();
     if (!res.reminders) toast({ variant: 'error', title: 'Reminders are off', subtitle: 'Allow notifications for Bluvfi in your phone’s settings to get them.' });
-    else if (res.alerts) toast({ variant: 'success', title: 'Reminders and alerts are on' });
-    else toast({ variant: 'success', title: 'Reminders are on', subtitle: 'Alerts for claims and providers will start once this phone is set up for them.' });
+    else if (res.alerts) toast({ variant: 'success', title: 'Reminders and alerts are on', subtitle: 'Alerts show up when your phone next checks, which can take a little while.' });
+    else toast({ variant: 'success', title: 'Reminders are on', subtitle: 'Alerts for claims and providers couldn’t be switched on right now. Try again later.' });
   };
 
   return (
@@ -156,7 +156,7 @@ export default function SparkScreen() {
                 <View style={styles.rowBetween}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>Reminders and alerts</Text>
-                    <Text style={styles.muted}>A nudge a few hours before your streak ends and before the weekly trial resets, and a note when a claim is paid or a provider you added is used.</Text>
+                    <Text style={styles.muted}>A nudge a few hours before your streak ends and before the weekly trial resets, and a note when a claim is paid or a provider you added is used. Notes arrive when your phone next checks, so they are not instant.</Text>
                   </View>
                   <Switch value={reminders.on} onValueChange={onReminders} trackColor={{ true: SharColors.body, false: Colors.bg3 }} thumbColor={Colors.tx0} accessibilityLabel="Remind me before my streak ends" />
                 </View>

@@ -191,15 +191,21 @@ export function listenForReminderTaps(onOpen: (url: string) => void): () => void
 }
 
 /**
- * This phone's Firebase Cloud Messaging token, which is how the server can send it a notification (a claim paid, a provider used).
- * null when push isn't set up in this build (no Firebase configuration in it) or the person refused: reminders still work without it.
+ * Shows a notification right now (an alert fetched from the server's inbox). False if notifications are unavailable here or not allowed.
+ * The person can only be shown something once they have allowed notifications, so this never asks.
  */
-export async function getPushToken(): Promise<string | null> {
-  if (!N) return null;
+export async function showNow(msg: { title: string; body: string; url?: string | null }): Promise<boolean> {
+  if (!N) return false;
   try {
-    const t = await N.getDevicePushTokenAsync();
-    return typeof t.data === 'string' && t.data.length > 0 ? t.data : null;
+    await configure();
+    const { status } = await N.getPermissionsAsync();
+    if (status !== 'granted') return false;
+    await N.scheduleNotificationAsync({
+      content: { title: msg.title, body: msg.body, data: msg.url ? { url: msg.url } : {} },
+      trigger: { channelId: CHANNEL },
+    });
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
