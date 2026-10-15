@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { Colors, Radii, Spacing, Type } from '@/constants/theme';
 import { useApiClient } from '@/hooks/use-api';
+import { useBalances } from '@/hooks/use-balances';
 import { useUnifiedBalance } from '@/hooks/use-unified-balance';
+import { mergeWalletBalances } from '@/lib/balance-merge';
 import { useArcUsdcBalance } from '@/hooks/use-arc-balance';
 import { AGENT_CHAIN, BRIDGE_DESTINATIONS, BRIDGE_SOURCE_OPTIONS, createEvmAdapter, getArcKit, type BridgeDestinationChain, type BridgeSourceChain } from '@/lib/arc-kit';
 import { ARC_USDC, arcAddressUrl, arcChain, arcTxUrl } from '@/lib/arc-chain';
@@ -171,12 +173,22 @@ function errorMessage(err: unknown, cancelled: string, fallback: string) {
   return msg.includes('rejected') || msg.includes('denied') ? cancelled : fallback;
 }
 
-// ─── Balances (Circle unified balance) ────────────────────────────────────────
+// ─── Balances (the wallet's USDC on every network, plus anything deposited in Circle Gateway) ─────────
 
 export function UnifiedBalanceTab({ onBridge }: { onBridge: () => void }) {
-  const { state, refresh } = useUnifiedBalance({ includePending: true, autoRefreshMs: 30_000 });
+  const { evmAddress, solanaAddress } = useAuth();
+  const { state, refresh: refreshGateway } = useUnifiedBalance({ includePending: true, autoRefreshMs: 30_000 });
+  // The wallet's own USDC, read on-chain: it is what pays at checkout and what Home shows. Circle's unified balance is only what was
+  // deposited into Gateway, so on its own it showed $0.00 for a wallet that holds USDC.
+  const onChain = useBalances(evmAddress ?? undefined, solanaAddress ?? undefined);
+  const { arcUsdc, refresh: refreshArc } = useArcUsdcBalance(30_000);
+  const refresh = () => {
+    refreshGateway();
+    refreshArc();
+    void onChain.refetch();
+  };
 
-  if (state.status === 'idle' || state.status === 'loading') {
+  if (state.status === 'idle' || state.status === 'loading' || (onChain.isLoading && !onChain.data)) {
     return <Text style={styles.muted}>Loading balances…</Text>;
   }
   if (state.status === 'error') {
@@ -190,7 +202,8 @@ export function UnifiedBalanceTab({ onBridge }: { onBridge: () => void }) {
     );
   }
 
-  const { totalUsdc, chains, fundedCount, emptyCount, lastFetched } = state;
+  const { lastFetched } = state;
+  const { rows: chains, totalUsdc, fundedCount, emptyCount } = mergeWalletBalances(state.chains, { byChain: onChain.data?.byChain, solUsdc: onChain.data?.solUsdc, arcUsdc });
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -228,10 +241,12 @@ export function UnifiedBalanceTab({ onBridge }: { onBridge: () => void }) {
           )}
           <View style={{ flex: 1 }}>
             <Text style={styles.chainName}>{c.label}</Text>
+            {c.wallet > 0 && c.gateway > 0 ? <Text style={styles.tiny}>${c.wallet.toFixed(2)} in wallet · ${c.gateway.toFixed(2)} in Gateway</Text> : null}
+            {c.wallet <= 0 && c.gateway > 0 ? <Text style={styles.tiny}>In Circle Gateway</Text> : null}
             {c.pendingBalance && <Text style={styles.tiny}>+${c.pendingBalance} pending</Text>}
           </View>
           {c.hasFunds ? (
-            <Text style={styles.chainBalance}>${c.confirmedBalance}</Text>
+            <Text style={styles.chainBalance}>${c.total.toFixed(2)}</Text>
           ) : (
             <View style={styles.emptyRight}>
               <Text style={styles.tiny}>No funds</Text>
