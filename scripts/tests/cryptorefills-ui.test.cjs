@@ -57,6 +57,10 @@ const emojiChains = ["src/components/dashboard/HistorySection.tsx", "src/compone
 check("History rows, the payment confirm sheet, the Arc send card and the manual-send card draw network logos, not emoji (🔷 🟣 ◎ 🟡)", !/[🔷🟣◎🟡]/u.test(emojiChains) && read("src/components/dashboard/HistorySection.tsx").includes("netBadge"));
 check("every 'Pay from another chain' link shows the five chains' logos, and the Cryptorefills checkout gives each chain its own tappable chip with its logo", picker.includes("export function MoreChainsLink") && picker.includes("export function ChainLogoStack") && read("src/components/dashboard/CryptorefillsProductSheet.tsx").includes("<TokenChainLogo token={chainLogo(c)} />"));
 
+// ── GetEquity's official logo (the website replaced its "GE" text badge)
+const geFiles = ["src/components/invest/InvestScreen.tsx", "src/components/invest/GetEquitySheet.tsx", "src/components/chat/GetEquityPaymentCard.tsx"].map(read);
+check("GetEquity shows its official logo on the Invest list, its sheet and its payment card, not a 'GE' text badge, as on the website", geFiles.every((s) => s.includes("logos/getequity.png") && !/>GE</.test(s)) && fs.existsSync(path.join(__dirname, "../../assets/images/logos/getequity.png")));
+
 // ── the send arrow
 const home = read("src/app/(tabs)/index.tsx");
 const chat = read("src/components/chat/ChatSheet.tsx");

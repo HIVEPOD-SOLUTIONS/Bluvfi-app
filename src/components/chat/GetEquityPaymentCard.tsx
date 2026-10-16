@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Button } from '@/components/ui/Button';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
@@ -67,7 +67,7 @@ export function GetEquityPaymentCard({ output }: { output: Output }) {
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>GE</Text>
+          <Image source={require('../../../assets/images/logos/getequity.png')} style={styles.badgeImage} resizeMode="contain" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{output.purpose === 'invest' ? 'Fund & invest' : 'Fund GetEquity wallet'}</Text>
@@ -122,8 +122,8 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  badge: { width: 40, height: 40, borderRadius: Radii.lg, backgroundColor: 'rgba(129,140,248,0.12)', alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontFamily: Fonts.sansBold, fontSize: 12, color: '#818CF8' },
+  badge: { width: 40, height: 40, borderRadius: Radii.lg, backgroundColor: 'rgba(91,141,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  badgeImage: { width: 28, height: 28 },
   title: { ...Type.h3, color: Colors.tx0 },
   sub: { ...Type.small, color: Colors.tx1 },
   tiny: { ...Type.small, fontSize: 11, color: Colors.tx1 },

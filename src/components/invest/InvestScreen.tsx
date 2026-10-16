@@ -112,8 +112,8 @@ export function InvestScreen({ onAskAi, onOpenBackpack, onOpenProvider, onSelect
           {(filter === 'ipo' || filter === 'all') && (
             <ProviderCard
               onPress={() => onOpenProvider('getequity')}
-              icon={<Text style={styles.geIcon}>GE</Text>}
-              iconBg="rgba(129,140,248,0.1)"
+              icon={<Image source={require('../../../assets/images/logos/getequity.png')} style={styles.geLogo} resizeMode="contain" />}
+              iconBg="rgba(91,141,255,0.1)"
               name="GetEquity"
               tag="Private Markets"
               badge="Managed"
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   providerIcon: { width: 48, height: 48, borderRadius: Radii.lg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   backpackLogo: { width: 32, height: 32 },
-  geIcon: { fontFamily: Fonts.sansBold, fontSize: 14, color: '#818CF8' },
+  geLogo: { width: 28, height: 28 },
   providerTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   providerName: { ...Type.h3, color: Colors.tx0 },
   tag: { borderRadius: 999, backgroundColor: 'rgba(242,240,232,0.06)', paddingVertical: 2, paddingHorizontal: 8 },

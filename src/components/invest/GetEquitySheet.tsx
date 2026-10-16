@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Colors, Fonts, Radii, Spacing, Type } from '@/constants/theme';
@@ -340,7 +340,7 @@ function GetEquityContent({ onAsk }: { onAsk: (prompt: string) => void }) {
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
           <View style={styles.logo}>
-            <Text style={styles.logoText}>GE</Text>
+            <Image source={require('../../../assets/images/logos/getequity.png')} style={styles.logoImage} resizeMode="contain" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>GetEquity</Text>
@@ -441,8 +441,8 @@ const styles = StyleSheet.create({
   small: { ...Type.small, color: Colors.tx1 },
   moves: { fontFamily: Fonts.sansBold, fontSize: 10, color: Colors.redAlert },
   chevron: { ...Type.h1, color: Colors.tx1 },
-  logo: { width: 44, height: 44, borderRadius: Radii.lg, backgroundColor: 'rgba(129,140,248,0.1)', alignItems: 'center', justifyContent: 'center' },
-  logoText: { fontFamily: Fonts.sansBold, fontSize: 15, color: '#818CF8' },
+  logo: { width: 44, height: 44, borderRadius: Radii.lg, backgroundColor: 'rgba(91,141,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  logoImage: { width: 30, height: 30 },
   opRow: {
     flexDirection: 'row',
     alignItems: 'center',
